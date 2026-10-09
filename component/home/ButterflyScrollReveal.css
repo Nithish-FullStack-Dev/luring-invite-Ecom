@@ -1,0 +1,58 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.bsr-wrapper {
+  position: relative;
+  width: 100%;
+  /* Better mobile viewport handling */
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.bsr-media-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  perspective: 500px;
+  overflow: hidden;
+}
+
+.bsr-media-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.bsr-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Image stays behind always */
+.bsr-image {
+  z-index: 1;
+}
+
+/* Video sits on top; starts transparent and fades in on scroll */
+.bsr-video {
+  z-index: 2;
+  opacity: 0;
+}
+
+/* Optional: prevent tap highlight / selection on mobile */
+.bsr-media-container,
+.bsr-media {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
