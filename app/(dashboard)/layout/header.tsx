@@ -1,4 +1,5 @@
 // src/components/layout/Header.tsx
+"use client";
 import React, { useEffect, useRef, useState } from "react";
 import { Menu, X, Phone, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
