@@ -15,6 +15,7 @@ import Footer from "../layout/Footer";
 import FloatingWhatsApp from "../layout/FloatingWhatsApp";
 // import ServicesSection from "@/components/home/ServicesSection";
 import ServicesSection from "@/component/home/ServicesSection";
+import Customized from "@/component/home/Customized";
 const Index = () => {
   // ✅ FIX: avoid window.open collision, define state
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -78,6 +79,7 @@ const Index = () => {
 
         <TrendingVideo />
         <ServicesSection />
+        <Customized />
         <WhyChooseUs />
         {/* <CategoriesCarousel /> */}
 
