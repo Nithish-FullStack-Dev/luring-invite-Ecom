@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { renderInvitation } from "@/lib/video-renderer";
 import { normalizeConfigForEditor } from "@/lib/template-config";
 
-export const runtime = "nodejs";
+// export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
@@ -12,15 +12,26 @@ export async function POST(request: NextRequest) {
   try {
     payload = await request.json();
   } catch {
-    return NextResponse.json({ status: "error", message: "Request body must be valid JSON." }, { status: 400 });
+    return NextResponse.json(
+      { status: "error", message: "Request body must be valid JSON." },
+      { status: 400 },
+    );
   }
 
   const templateId = Number(payload?.templateId);
   const framesData = payload?.framesData;
   const musicTrackId = String(payload?.musicTrackId || "").trim();
 
-  if (!Number.isInteger(templateId) || templateId <= 0 || !framesData || typeof framesData !== "object") {
-    return NextResponse.json({ status: "error", message: "templateId and framesData are required." }, { status: 400 });
+  if (
+    !Number.isInteger(templateId) ||
+    templateId <= 0 ||
+    !framesData ||
+    typeof framesData !== "object"
+  ) {
+    return NextResponse.json(
+      { status: "error", message: "templateId and framesData are required." },
+      { status: 400 },
+    );
   }
 
   let jobId: string | undefined;
@@ -31,7 +42,10 @@ export async function POST(request: NextRequest) {
       include: { frames: { orderBy: { frameNumber: "asc" } } },
     });
     if (!template || !template.active) {
-      return NextResponse.json({ status: "error", message: "Template not found." }, { status: 404 });
+      return NextResponse.json(
+        { status: "error", message: "Template not found." },
+        { status: 404 },
+      );
     }
 
     let frames = template.frames.map((frame) => ({
@@ -45,21 +59,32 @@ export async function POST(request: NextRequest) {
     }));
 
     if (frames.length === 0 && template.legacyPlaceholderConfig) {
-      frames = [{
-        id: -template.id,
-        frameNumber: 1,
-        title: "Customize invitation",
-        sourceVideo: template.sourceVideo,
-        previewImage: template.thumbnail,
-        placeholderConfig: normalizeConfigForEditor(template.legacyPlaceholderConfig),
-        durationSeconds: template.durationSeconds || null,
-      }];
+      frames = [
+        {
+          id: -template.id,
+          frameNumber: 1,
+          title: "Customize invitation",
+          sourceVideo: template.sourceVideo,
+          previewImage: template.thumbnail,
+          placeholderConfig: normalizeConfigForEditor(
+            template.legacyPlaceholderConfig,
+          ),
+          durationSeconds: template.durationSeconds || null,
+        },
+      ];
     }
 
     const knownIds = new Set(frames.map((frame) => String(frame.id)));
     const payloadIds = Object.keys(framesData as Record<string, unknown>);
     if (!payloadIds.some((key) => knownIds.has(key))) {
-      return NextResponse.json({ status: "error", message: "No submitted text data matches the template frames. Reload the editor and retry." }, { status: 400 });
+      return NextResponse.json(
+        {
+          status: "error",
+          message:
+            "No submitted text data matches the template frames. Reload the editor and retry.",
+        },
+        { status: 400 },
+      );
     }
 
     let musicPath: string | null = null;
@@ -68,7 +93,13 @@ export async function POST(request: NextRequest) {
         where: { id: musicTrackId, enabled: true },
       });
       if (!track) {
-        return NextResponse.json({ status: "error", message: "Selected background music was not found." }, { status: 400 });
+        return NextResponse.json(
+          {
+            status: "error",
+            message: "Selected background music was not found.",
+          },
+          { status: 400 },
+        );
       }
       musicPath = track.path;
     }
@@ -100,15 +131,22 @@ export async function POST(request: NextRequest) {
       data: { status: "COMPLETED", outputPath: rendered.outputPath },
     });
 
-    return NextResponse.json({ status: "success", jobId: job.id, video: rendered.publicUrl });
+    return NextResponse.json({
+      status: "success",
+      jobId: job.id,
+      video: rendered.publicUrl,
+    });
   } catch (error) {
     console.error("Video generation failed:", error);
-    const message = error instanceof Error ? error.message : "Video generation failed.";
+    const message =
+      error instanceof Error ? error.message : "Video generation failed.";
     if (jobId) {
-      await prisma.videoJob.update({
-        where: { id: jobId },
-        data: { status: "FAILED", error: message.slice(0, 8000) },
-      }).catch(() => undefined);
+      await prisma.videoJob
+        .update({
+          where: { id: jobId },
+          data: { status: "FAILED", error: message.slice(0, 8000) },
+        })
+        .catch(() => undefined);
     }
     return NextResponse.json({ status: "error", message }, { status: 500 });
   }
