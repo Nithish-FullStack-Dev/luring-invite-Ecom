@@ -216,7 +216,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* ================= HEADER ================= */}
-        <header className="bg-white shadow-md font-outfit">
+        <header className="bg-white shadow-md font-ysabeau">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between py-2">
               {/* Logo */}

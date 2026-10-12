@@ -1,7 +1,14 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
+import { Ysabeau } from "next/font/google";
 import "./globals.css";
 import Providers from "@/component/Providers";
+
+const ysabeau = Ysabeau({
+  subsets: ["latin"],
+  variable: "--font-ysabeau-loaded",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -36,8 +43,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="min-h-screen antialiased">
+    <html lang="en" className={ysabeau.variable}>
+      <body className="min-h-screen antialiased font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
