@@ -1,0 +1,109 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum VideoJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Category {
+  id        String             @id @default(cuid())
+  name      String
+  slug      String             @unique
+  parentId  String?
+  parent    Category?          @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[]         @relation("CategoryTree")
+  templates TemplateCategory[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([parentId])
+}
+
+model Template {
+  id                      Int                @id @default(autoincrement())
+  title                   String
+  slug                    String             @unique
+  description             String?            @db.Text
+  thumbnail               String?
+  previewVideo            String?
+  sourceVideo             String?
+  price                   Decimal            @default(299.00) @db.Decimal(10, 2)
+  durationSeconds         Int                @default(0)
+  active                  Boolean            @default(true)
+  legacyPlaceholderConfig Json?
+  categories              TemplateCategory[]
+  frames                  TemplateFrame[]
+  videoJobs               VideoJob[]
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  @@index([active, createdAt])
+}
+
+model TemplateCategory {
+  templateId Int
+  categoryId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, categoryId])
+  @@index([categoryId])
+}
+
+model TemplateFrame {
+  id                Int      @id @default(autoincrement())
+  templateId        Int
+  frameNumber       Int
+  title             String?
+  sourceVideo       String?
+  previewImage      String?
+  placeholderConfig Json
+  durationSeconds   Int?
+  template          Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([templateId, frameNumber])
+  @@index([templateId, frameNumber])
+}
+
+model MusicTrack {
+  id        String   @id @default(cuid())
+  title     String   @unique
+  path      String   @unique
+  duration  Int?
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled, title])
+}
+
+model VideoJob {
+  id         String         @id @default(cuid())
+  templateId Int
+  status     VideoJobStatus @default(PENDING)
+  input      Json
+  outputPath String?
+  error      String?        @db.Text
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  template   Template       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, createdAt])
+  @@index([status, createdAt])
+}
