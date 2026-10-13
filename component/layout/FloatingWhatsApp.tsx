@@ -1,15 +1,18 @@
+import { usePublicContent } from "@/component/cms/PublicContentProvider";
+import { defaults } from "@/data/cms";
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 
 export default function FloatingWhatsApp() {
+  const contact = usePublicContent().contact ?? defaults.contact;
   const [isHovered, setIsHovered] = useState(false);
 
   const openWhatsApp = () => {
     const message = encodeURIComponent(
       "Hi! I'm interested in your invitation services. Can you help me?"
     );
-    window.open(`https://api.whatsapp.com/send?phone=91 9121080131&text=${message}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${contact.whatsapp}&text=${message}`, '_blank');
   };
 
   return (

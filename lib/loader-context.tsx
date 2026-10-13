@@ -1,68 +1,34 @@
-// src/lib/loader-context.tsx
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
-
-interface LoaderContextType {
-  done: boolean;
-  finish: () => void;
-}
-
+import React, { createContext, useContext, useState, useSyncExternalStore } from "react";
+interface LoaderContextType { done: boolean; finish: () => void }
 const KEY = "invite-loader-done";
-
-// safe read
 function readDone(): boolean {
-  try {
-    return sessionStorage.getItem(KEY) === "true";
-  } catch {
-    return false;
-  }
+  try { return sessionStorage.getItem(KEY) === "true"; } catch { return false; }
 }
-
-const LoaderContext = createContext<LoaderContextType | null>(null);
-
-export const LoaderProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [done, setDone] = useState<boolean>(() => readDone());
-
-  // ✅ Re-sync when tab becomes visible again (fixes "missing after switching tab")
-  useEffect(() => {
-    const sync = () => setDone(readDone());
-
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") sync();
-    };
-
-    // when coming back from bfcache on Safari
-    const onPageShow = () => sync();
-
-    window.addEventListener("pageshow", onPageShow);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      window.removeEventListener("pageshow", onPageShow);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-
-  const finish = () => {
-    try {
-      sessionStorage.setItem(KEY, "true");
-    } catch {
-      // ignore
-    }
-    setDone(true);
+function subscribe(notify: () => void) {
+  window.addEventListener("pageshow", notify);
+  window.addEventListener("storage", notify);
+  document.addEventListener("visibilitychange", notify);
+  return () => {
+    window.removeEventListener("pageshow", notify);
+    window.removeEventListener("storage", notify);
+    document.removeEventListener("visibilitychange", notify);
   };
-
-  return (
-    <LoaderContext.Provider value={{ done, finish }}>
-      {children}
-    </LoaderContext.Provider>
-  );
+}
+const serverSnapshot = () => false;
+const LoaderContext = createContext<LoaderContextType | null>(null);
+export const LoaderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Match the server during hydration, then read the tab's existing animation flag.
+  const persisted = useSyncExternalStore(subscribe, readDone, serverSnapshot);
+  const [finished, setFinished] = useState(false);
+  const finish = () => {
+    try { sessionStorage.setItem(KEY, "true"); } catch { /* Storage may be disabled. */ }
+    setFinished(true);
+  };
+  return <LoaderContext.Provider value={{ done: finished || persisted, finish }}>{children}</LoaderContext.Provider>;
 };
-
 export const useLoader = () => {
-  const ctx = useContext(LoaderContext);
-  if (!ctx) throw new Error("useLoader must be used inside LoaderProvider");
-  return ctx;
+  const context = useContext(LoaderContext);
+  if (!context) throw new Error("useLoader must be used inside LoaderProvider");
+  return context;
 };

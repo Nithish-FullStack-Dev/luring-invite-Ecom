@@ -1,5 +1,7 @@
 // src/components/layout/Header.tsx
 "use client";
+import { usePublicContent } from "@/component/cms/PublicContentProvider";
+import { defaults } from "@/data/cms";
 import React, { useEffect, useRef, useState } from "react";
 import { Menu, X, Phone, Mail } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +32,8 @@ const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzAzqzG5hYLKg7oYEmWQsrIos4bLL2xUwZMPzUd5t8CURtd37mHSMld6V17XqhJmXs9/exec";
 
 const Header: React.FC = () => {
+  const cms = usePublicContent();
+  const contact = cms.contact ?? defaults.contact;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
@@ -46,13 +50,7 @@ const Header: React.FC = () => {
     service: "",
     message: "",
   });
-  const navItems = [
-    { label: "WEDDING", slug: "wedding-invites" },
-    { label: "BIRTHDAY", slug: "birthday" },
-    { label: "ANNIVERSARY", slug: "anniversary" },
-    { label: "HOUSEWARMING", slug: "house-warming" },
-    { label: "PDF INVITES", slug: "pdf-invites" },
-  ];
+  const navItems = (cms.navigation ?? defaults.navigation).links;
   const submitQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingQuote(true);
@@ -140,24 +138,24 @@ const Header: React.FC = () => {
             {/* Left: Phone + Email (ICONS ONLY ON MOBILE) */}
             <div className="flex items-center gap-3">
               <a
-                href="tel:+919121080131"
+                href={"tel:" + contact.phone.replace(/[^+0-9]/g, "")}
                 className="inline-flex items-center gap-2 font-semibold"
                 aria-label="Call"
               >
                 <Phone className="w-5 h-5" />
                 <span className="hidden sm:inline underline whitespace-nowrap">
-                  +91 9121080131
+                  {contact.phone}
                 </span>
               </a>
 
               <a
-                href={SOCIAL_LINKS.email}
+                href={"mailto:" + contact.email}
                 className="inline-flex items-center gap-2 font-semibold"
                 aria-label="Email"
               >
                 <Mail className="w-5 h-5" />
                 <span className="hidden sm:inline underline whitespace-nowrap">
-                  outrightluringinvite@gmail.com
+                  {contact.email}
                 </span>
               </a>
             </div>
@@ -193,7 +191,11 @@ const Header: React.FC = () => {
 
             {/* Right: Social icons (Desktop Only) */}
             <div className="hidden md:flex items-center gap-4 justify-self-end">
-              <a href={SOCIAL_LINKS.whatsapp} target="_blank" rel="noreferrer">
+              <a
+                href={"https://wa.me/" + contact.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <i className="fab fa-whatsapp text-lg" />
               </a>
               <a href={SOCIAL_LINKS.facebook} target="_blank" rel="noreferrer">
@@ -235,27 +237,15 @@ const Header: React.FC = () => {
                 ref={dropdownRef}
                 className="hidden lg:flex items-center gap-8"
               >
-                {navItems.map(({ label, slug }) => (
+                {navItems.map(({ label, url }) => (
                   <Link
-                    key={slug}
-                    href={`/collections/${slug}`}
+                    key={url + label}
+                    href={url}
                     className="font-semibold hover:text-[#A86DCD]"
                   >
                     {label}
                   </Link>
                 ))}
-                <Link
-                  href="/about"
-                  className="font-semibold hover:text-[#A86DCD]"
-                >
-                  ABOUT
-                </Link>
-                <Link
-                  href="/contact"
-                  className="font-semibold hover:text-[#A86DCD]"
-                >
-                  CONTACT
-                </Link>
 
                 {/* ✅ Quote Button */}
                 <button
@@ -298,32 +288,16 @@ const Header: React.FC = () => {
             </div>
 
             <nav className="space-y-5">
-              {navItems.map(({ label, slug }) => (
+              {navItems.map(({ label, url }) => (
                 <Link
-                  key={slug}
-                  href={`/collections/${slug}`}
+                  key={url + label}
+                  href={url}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block text-lg font-medium"
                 >
                   {label}
                 </Link>
               ))}
-
-              <Link
-                href="/about"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block text-lg font-medium"
-              >
-                ABOUT
-              </Link>
-
-              <Link
-                href="/contact"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="block text-lg font-medium"
-              >
-                CONTACT
-              </Link>
 
               {/* ✅ Quote Button Mobile */}
               <button
@@ -338,14 +312,14 @@ const Header: React.FC = () => {
             <div className="mt-10 border-t pt-6">
               <div className="flex items-center justify-center gap-5 text-gray-700">
                 <a
-                  href={SOCIAL_LINKS.whatsapp}
+                  href={"https://wa.me/" + contact.whatsapp}
                   target="_blank"
                   rel="noreferrer"
                   aria-label="WhatsApp"
                 >
                   <i className="fab fa-whatsapp text-2xl text-green-500" />
                 </a>
-                <a href={SOCIAL_LINKS.email} aria-label="Email">
+                <a href={"mailto:" + contact.email} aria-label="Email">
                   <Mail className="w-6 h-6" />
                 </a>
                 <a

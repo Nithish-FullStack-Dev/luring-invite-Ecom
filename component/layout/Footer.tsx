@@ -1,10 +1,13 @@
 "use client";
 import {
+  FaPinterestP,
   FaFacebookF,
   FaInstagram,
   FaLinkedin,
   FaYoutube,
 } from "react-icons/fa";
+import { usePublicContent } from "@/component/cms/PublicContentProvider";
+import { defaults } from "@/data/cms";
 import { motion } from "framer-motion";
 import { collections } from "@/data/products";
 import Link from "next/link";
@@ -12,12 +15,16 @@ import { Button } from "@/component/ui/button";
 import { Mail, MapPin, Phone } from "lucide-react";
 
 export default function Footer() {
+  const cms = usePublicContent();
+  const footer = cms.footer ?? defaults.footer;
+  const contact = cms.contact ?? defaults.contact;
+  const socialIcons = { Instagram: FaInstagram, Facebook: FaFacebookF, YouTube: FaYoutube, Pinterest: FaPinterestP, LinkedIn: FaLinkedin };
   const openWhatsApp = () => {
     const message = encodeURIComponent(
       "Hi! I'm interested in your invitation services. Can you help me?",
     );
     window.open(
-      `https://api.whatsapp.com/send?phone=91 9121080131&text=${message}`,
+      `https://api.whatsapp.com/send?phone=${contact.whatsapp}&text=${message}`,
       "_blank",
     );
   };
@@ -76,51 +83,13 @@ export default function Footer() {
                 />
               </Link>
               <p className="text-white/80 text-sm mb-6">
-                Where dreams meet innovation, and every occasion becomes a
-                cherished memory.
+                {footer.text}
               </p>
-              <div className="flex">
-                <a
-                  href="https://www.instagram.com/outrightsluringinvite/"
-                  className="w-10 h-10 rounded-full  flex items-center justify-center hover:bg-primary/40 transition-colors"
-                >
-                  <FaInstagram className="w-7 h-7" />
-                </a>
-                <a
-                  href="https://www.facebook.com/outrightluring"
-                  className="w-10 h-10 rounded-full  flex items-center justify-center hover:bg-primary/40 transition-colors"
-                >
-                  <FaFacebookF className="w-7 h-7" />
-                </a>
-                <a
-                  href="https://www.youtube.com/@LuringInvite"
-                  className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors"
-                >
-                  <FaYoutube className="w-7 h-7" />
-                </a>
-                <a
-                  href="https://in.pinterest.com/luringinvite/"
-                  className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors"
-                  aria-label="Pinterest"
-                >
-                  {/* Pinterest SVG icon */}
-                  <svg
-                    className="w-7 h-7"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 0C5.373 0 0 5.373 0 12c0 4.991 3.657 9.128 8.438 10.093-.117-.858-.223-2.178.047-3.115.244-.832 1.573-5.308 1.573-5.308s-.4-.8-.4-1.984c0-1.859 1.078-3.247 2.419-3.247 1.142 0 1.694.858 1.694 1.887 0 1.15-.732 2.868-1.109 4.463-.316 1.338.671 2.428 1.99 2.428 2.389 0 4.021-3.066 4.021-6.697 0-2.77-1.87-4.844-5.273-4.844-3.84 0-6.24 2.872-6.24 6.08 0 1.12.331 1.911.849 2.522.238.283.272.397.186.722-.064.238-.211.812-.271 1.04-.086.33-.352.448-.648.326-1.813-.74-2.646-2.728-2.646-4.973 0-3.692 3.123-8.104 9.309-8.104 4.973 0 8.236 3.6 8.236 7.466 0 5.108-2.837 8.922-7.032 8.922-1.406 0-2.728-.76-3.182-1.617l-.865 3.29c-.25.958-.74 2.157-1.104 2.89C9.36 23.82 10.66 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z" />
-                  </svg>
-                </a>
-                <a
-                  href="https://www.linkedin.com/in/luring-invite/"
-                  className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors"
-                >
-                  <FaLinkedin className="w-7 h-7" />
-                </a>
-              </div>
+              <div className="flex flex-wrap">{footer.socialLinks.map(link => {
+                const Icon = socialIcons[link.label as keyof typeof socialIcons];
+                return <a key={link.label + link.url} href={link.url} aria-label={link.label} className="min-w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors">{Icon ? <Icon className="w-7 h-7" /> : <span className="text-xs px-2">{link.label}</span>}</a>;
+              })}</div>
             </div>
-
             {/* Quick Links */}
             <div>
               <h4 className="font-semibold mb-6">Quick Links</h4>
@@ -193,21 +162,21 @@ export default function Footer() {
                 <li className="flex items-start gap-3">
                   <Phone className="w-5 h-5 text-primary mt-0.5" />
                   <div>
-                    <p className="text-white/80">+91 9121080131</p>
+                    <p className="text-white/80">{contact.phone}</p>
                     <p className="text-xs text-white/80/70">
-                      Mon-Sat, 10AM-7PM
+                      {contact.hours}
                     </p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <Mail className="w-5 h-5 text-primary mt-0.5" />
                   <p className="text-white/80">
-                    outrightluringinvite@gmail.com
+                    {contact.email}
                   </p>
                 </li>
                 <li className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
-                  <p className="text-white/80">Hyderabad, Telangana, India</p>
+                  <p className="text-white/80">{contact.location}</p>
                 </li>
               </ul>
             </div>
@@ -216,8 +185,7 @@ export default function Footer() {
           {/* Bottom */}
           <div className="border-t border-white/80/20 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-white/80">
-              © {new Date().getFullYear()} Outright's Luring Invite. All rights
-              reserved.
+              © {new Date().getFullYear()} {footer.copyright}
             </p>
             <div className="flex gap-6 text-sm">
               <Link

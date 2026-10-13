@@ -6,9 +6,9 @@ import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 
-import Header from "@/app/(dashboard)/layout/header";
-import Footer from "@/app/(dashboard)/layout/Footer";
-import FloatingWhatsApp from "@/app/(dashboard)/layout/FloatingWhatsApp";
+import Header from "@/component/layout/header";
+import Footer from "@/component/layout/Footer";
+import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 import PageHero from "@/component/shared/PageHero";
 import CollectionFilters, {
   type FilterState,

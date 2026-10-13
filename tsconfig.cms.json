@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "lib/cms/**/*.ts",
+    "lib/prisma.ts",
+    "component/cms/**/*.tsx",
+    "app/admin/**/*.ts",
+    "app/admin/**/*.tsx",
+    "scripts/cms-admin.ts",
+    "tests/**/*.ts",
+    "app/api/login/**/*.ts",
+    "app/api/logout/**/*.ts",
+    "app/api/me/**/*.ts",
+    "app/api/content/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".next-cms-e2e"
+  ]
+}

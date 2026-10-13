@@ -1,45 +1,29 @@
 "use client";
+import { usePublicContent } from "@/component/cms/PublicContentProvider";
+import { defaults } from "@/data/cms";
 import { motion } from "framer-motion";
 import { Phone, Mail, MapPin, Clock, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import Header from "../layout/header";
+import Header from "@/component/layout/header";
 import PageHero from "@/component/shared/PageHero";
-import Footer from "../layout/Footer";
-import FloatingWhatsApp from "../layout/FloatingWhatsApp";
+import Footer from "@/component/layout/Footer";
+import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 import { Input } from "@/component/ui/input";
 import { Textarea } from "@/component/ui/textarea";
 import { Button } from "@/component/ui/button";
 
-const contactInfo = [
-  {
-    icon: Phone,
-    title: "Phone",
-    value: "+91 9121080131",
-    link: "tel:+919121080131",
-  },
-  {
-    icon: Mail,
-    title: "Email",
-    value: "outrightluringinvite@gmail.com",
-    link: "mailto:outrightluringinvite@gmail.com",
-  },
-  {
-    icon: MapPin,
-    title: "Location",
-    value: "Hyderabad, Telangana, India",
-    link: null,
-  },
-  {
-    icon: Clock,
-    title: "Working Hours",
-    value: "Mon - Sat: 10AM - 7PM",
-    link: null,
-  },
-];
+
 const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzAzqzG5hYLKg7oYEmWQsrIos4bLL2xUwZMPzUd5t8CURtd37mHSMld6V17XqhJmXs9/exec";
 export default function Contact() {
+  const contact = usePublicContent().contact ?? defaults.contact;
+  const contactInfo = [
+    { icon: Phone, title: "Phone", value: contact.phone, link: "tel:" + contact.phone.replace(/[^+0-9]/g, "") },
+    { icon: Mail, title: "Email", value: contact.email, link: "mailto:" + contact.email },
+    { icon: MapPin, title: "Location", value: contact.location, link: null },
+    { icon: Clock, title: "Working Hours", value: contact.hours, link: null },
+  ];
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -99,7 +83,7 @@ export default function Contact() {
   const handleWhatsApp = () => {
     const message = `Hi! I'm ${formData.name || "interested"}.\nSubject: ${formData.subject || "General Enquiry"}\nMessage: ${formData.message || "I would like to enquire about your services."}`;
     window.open(
-      `https://wa.me/919121080131?text=${encodeURIComponent(message)}`,
+      `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(message)}`,
       "_blank",
     );
   };

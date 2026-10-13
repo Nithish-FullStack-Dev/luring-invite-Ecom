@@ -103,3 +103,48 @@ model VideoJob {
   @@index([templateId, createdAt])
   @@index([status, createdAt])
 }
+
+model CmsAdmin {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sessions     CmsSession[]
+}
+
+model CmsSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  adminId   String
+  admin     CmsAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model CmsLoginLimit {
+  key       String   @id
+  attempts  Int      @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+enum CmsContentStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model CmsContent {
+  id        String           @id @default(cuid())
+  title     String
+  key       String           @unique
+  type      String
+  content   Json
+  status    CmsContentStatus @default(DRAFT)
+  version   Int              @default(1)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  @@index([status, key])
+}

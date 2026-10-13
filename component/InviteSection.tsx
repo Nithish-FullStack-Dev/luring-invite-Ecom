@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import EnvelopeSVG from "./EnvelopeSVG";
 import InviteCard from "./InviteCard";
-import { useIsMobile } from "./useIsMobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 gsap.registerPlugin(ScrollTrigger);
 

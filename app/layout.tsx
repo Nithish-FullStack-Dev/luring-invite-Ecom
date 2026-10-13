@@ -1,8 +1,11 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Ysabeau } from "next/font/google";
+import { Ysabeau, Geist } from "next/font/google";
 import "./globals.css";
 import Providers from "@/component/Providers";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const ysabeau = Ysabeau({
   subsets: ["latin"],
@@ -43,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={ysabeau.variable}>
+    <html lang="en" className={cn("font-sans", geist.variable)}>
       <body className="min-h-screen antialiased font-sans">
         <Providers>{children}</Providers>
       </body>

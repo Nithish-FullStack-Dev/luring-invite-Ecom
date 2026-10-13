@@ -1,6 +1,7 @@
 // components/Providers.tsx
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoaderProvider } from "@/lib/loader-context";
@@ -15,6 +16,7 @@ type ProvidersProps = {
 };
 
 export default function Providers({ children }: ProvidersProps) {
+  const isAdmin = usePathname().startsWith("/admin");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -31,7 +33,7 @@ export default function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <LoaderProvider>
-          <InviteLoader />
+          {!isAdmin && <InviteLoader />}
           <Toaster />
           <Sonner />
           {/* <SiteProtection /> */}

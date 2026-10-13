@@ -6,15 +6,15 @@ import { ArrowLeft, Check, Play, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useParams } from "next/navigation";
-import Header from "../../layout/header";
+import Header from "@/component/layout/header";
 import Link from "next/link";
 import VideoPreview, { VideoPlatform } from "@/component/shared/VideoPreview";
 import PdfPreview from "@/component/shared/PdfPreview";
 import { Input } from "@/component/ui/input";
 import { Textarea } from "@/component/ui/textarea";
 import { Button } from "@/component/ui/button";
-import Footer from "../../layout/Footer";
-import FloatingWhatsApp from "../../layout/FloatingWhatsApp";
+import Footer from "@/component/layout/Footer";
+import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 
 const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzAzqzG5hYLKg7oYEmWQsrIos4bLL2xUwZMPzUd5t8CURtd37mHSMld6V17XqhJmXs9/exec";

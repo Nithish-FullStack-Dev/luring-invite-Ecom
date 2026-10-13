@@ -3,15 +3,17 @@
 // import Footer from "@/components/layout/Footer";
 // import FloatingWhatsApp from "@/components/layout/FloatingWhatsApp";
 // import PageHero from "@/components/shared/PageHero";
+import { usePublicContent } from "@/component/cms/PublicContentProvider";
+import { defaults } from "@/data/cms";
 import { motion } from "framer-motion";
 import { Heart, Award, Users, Sparkles, Quote } from "lucide-react";
 // import StatsCounter from "@/components/home/StatsCounter";
 // import { WorkProcessTimeline } from "@/components/about/work-process-timeline";
 // import { ProfileCard } from "@/components/ui/profile-card";
-import Header from "../layout/header";
+import Header from "@/component/layout/header";
 import PageHero from "@/component/shared/PageHero";
-import Footer from "../layout/Footer";
-import FloatingWhatsApp from "../layout/FloatingWhatsApp";
+import Footer from "@/component/layout/Footer";
+import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 import { ProfileCard } from "@/component/ui/profile-card";
 import StatsCounter from "@/component/home/StatsCounter";
 import { WorkProcessTimeline } from "@/component/about/work-process-timeline";
@@ -44,13 +46,14 @@ const values = [
 ];
 
 export default function About() {
+  const { about } = usePublicContent();
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main>
         <PageHero
-          title="About Us"
-          subtitle="Transforming celebrations with innovative digital invitations that capture emotion, elegance, and joy"
+          title={about?.heading ?? defaults.about.heading}
+          subtitle={about?.description ?? defaults.about.description}
           backgroundImage="https://images.unsplash.com/photo-1519741497674-611481863552?w=1920&q=80"
         />
 
@@ -63,7 +66,7 @@ export default function About() {
               viewport={{ once: true }}
               transition={{ duration: 0.9 }}
             >
-              <p className="text-xl md:text-2xl text-foreground/80 leading-relaxed max-w-4xl mx-auto">
+              {about ? about.paragraphs.map((paragraph, index) => <p key={index} className="text-xl md:text-2xl text-foreground/80 leading-relaxed max-w-4xl mx-auto mb-4">{paragraph}</p>) : <p className="text-xl md:text-2xl text-foreground/80 leading-relaxed max-w-4xl mx-auto">
                 At{" "}
                 <span className="font-semibold text-primary">
                   Outright's Luring Invite
@@ -71,7 +74,7 @@ export default function About() {
                 , we believe every celebration begins with an invitation that
                 sets the perfect tone — one that reflects your unique story and
                 leaves a lasting impression.
-              </p>
+              </p>}
             </motion.div>
           </div>
         </section>
