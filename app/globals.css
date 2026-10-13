@@ -62,10 +62,10 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --font-sans: var(--font-sans);
-  --font-body: var(--font-ysabeau-loaded), sans-serif;
+  --font-sans: "ysabeau", sans-serif;
+  --font-body: "ysabeau", sans-serif;
   --font-ysabeau: var(--font-ysabeau-loaded), sans-serif;
-  --font-heading: var(--font-sans);
+  --font-heading: "SnellRoundhand Script", cursive;
   --font-subheading: "SnellRoundhand Script", cursive;
   --font-serif: "IBM Plex Serif", Georgia, serif;
   --font-lato: "Lato", Arial, sans-serif;
