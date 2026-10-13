@@ -1,3 +1,4 @@
+// app\admin\(protected)\admin-sidebar.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import {
   LayoutDashboard,
   Menu,
   PanelLeftClose,
+  PanelLeftOpen,
   Sparkles,
   X,
 } from "lucide-react";
@@ -21,11 +23,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/component/ui/dropdown-menu";
-
 
 const navigation = [
   {
@@ -37,6 +36,11 @@ const navigation = [
     title: "Website Content",
     href: "/admin/content",
     icon: FileText,
+  },
+  {
+    title: "Customize Templates",
+    href: "/admin/customize",
+    icon: Sparkles,
   },
 ];
 
@@ -164,7 +168,6 @@ export default function AdminSidebar({
             {(!collapsed || mobile) && <span>View website</span>}
           </Link>
         </div>
-
       </div>
     </>
   );
@@ -197,25 +200,22 @@ export default function AdminSidebar({
   const SidebarAccount = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="border-t border-sidebar-border p-3">
       <DropdownMenu>
-    
-
         <DropdownMenuContent
           align="end"
           side={mobile ? "bottom" : "top"}
           className="w-64"
         >
-
           <DropdownMenuSeparator />
-
-          <DropdownMenuItem asChild>
-            <Link href="/" target="_blank" rel="noopener noreferrer">
-              <ArrowUpRight className="mr-2 size-4" />
-              View website
-            </Link>
+          <DropdownMenuItem
+            onSelect={() => {
+              window.open("/", "_blank", "noopener,noreferrer");
+            }}
+            className="cursor-pointer"
+          >
+            <ArrowUpRight className="mr-2 size-4" />
+            View website
           </DropdownMenuItem>
-
           <DropdownMenuSeparator />
-
           <DropdownMenuItem
             onSelect={() => {
               window.location.href = "/admin/dashboard";
@@ -302,28 +302,26 @@ export default function AdminSidebar({
             aria-controls="mobile-admin-sidebar"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen(true)}
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+            className="!flex md:!hidden size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-accent"
           >
             <Menu className="size-5" />
           </button>
-
           <div className="hidden md:flex">
             <button
               type="button"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!collapsed}
               onClick={() => setCollapsed((previous) => !previous)}
-              className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               {collapsed ? (
-                <Menu className="size-5" />
+                <PanelLeftOpen size={20} />
               ) : (
-                <PanelLeftClose className="size-5" />
+                <PanelLeftClose size={20} />
               )}
             </button>
           </div>
-
           <div className="h-5 w-px shrink-0 bg-border" />
-
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">
               {pathname.startsWith("/admin/content")
@@ -331,7 +329,6 @@ export default function AdminSidebar({
                 : "Dashboard"}
             </p>
           </div>
-
           <div className="hidden min-w-0 sm:block">
             <SessionLabel email={adminEmail} />
           </div>

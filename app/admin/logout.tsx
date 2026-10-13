@@ -6,12 +6,30 @@ export default function Logout({ all = false }: { all?: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  return <form onSubmit={async event => {
-    event.preventDefault(); setPending(true); setError("");
-    try { await cmsRequest("/api/logout", "POST", { all }); router.replace("/admin/login"); router.refresh(); }
-    catch { setError("Unable to log out. Please try again."); setPending(false); }
-  }}>
-    <button disabled={pending}>{pending ? "Logging out…" : all ? "Log out all devices" : "Log out"}</button>
-    {error && <p className="cms-error" role="alert">{error}</p>}
-  </form>;
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setPending(true);
+        setError("");
+        try {
+          await cmsRequest("/api/logout", "POST", { all });
+          router.replace("/admin/login");
+          router.refresh();
+        } catch {
+          setError("Unable to log out. Please try again.");
+          setPending(false);
+        }
+      }}
+    >
+      <button disabled={pending}>
+        {pending ? "Logging out…" : all ? "Log out all devices" : "Log out"}
+      </button>
+      {error && (
+        <p className="cms-error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
 }
