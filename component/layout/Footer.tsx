@@ -1,3 +1,4 @@
+// component\layout\Footer.tsx
 "use client";
 import {
   FaPinterestP,
@@ -11,14 +12,21 @@ import { defaults } from "@/data/cms";
 import { motion } from "framer-motion";
 import { collections } from "@/data/products";
 import Link from "next/link";
-import { Button } from "@/component/ui/button";
+// import { Button } from "@/component/ui/button";
 import { Mail, MapPin, Phone } from "lucide-react";
+import { Button } from "../ui/button";
 
 export default function Footer() {
   const cms = usePublicContent();
   const footer = cms.footer ?? defaults.footer;
   const contact = cms.contact ?? defaults.contact;
-  const socialIcons = { Instagram: FaInstagram, Facebook: FaFacebookF, YouTube: FaYoutube, Pinterest: FaPinterestP, LinkedIn: FaLinkedin };
+  const socialIcons = {
+    Instagram: FaInstagram,
+    Facebook: FaFacebookF,
+    YouTube: FaYoutube,
+    Pinterest: FaPinterestP,
+    LinkedIn: FaLinkedin,
+  };
   const openWhatsApp = () => {
     const message = encodeURIComponent(
       "Hi! I'm interested in your invitation services. Can you help me?",
@@ -44,7 +52,6 @@ export default function Footer() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               variant="heroOutline"
-              size="xl"
               onClick={openWhatsApp}
               className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
             >
@@ -56,7 +63,7 @@ export default function Footer() {
             <Link href="/contact">
               <Button
                 variant="heroOutline"
-                size="xl"
+                // size="xl"
                 className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto"
               >
                 <Mail className="w-5 h-5" />
@@ -82,13 +89,27 @@ export default function Footer() {
                   transition={{ duration: 0.8, ease: "easeInOut" }}
                 />
               </Link>
-              <p className="text-white/80 text-sm mb-6">
-                {footer.text}
-              </p>
-              <div className="flex flex-wrap">{footer.socialLinks.map(link => {
-                const Icon = socialIcons[link.label as keyof typeof socialIcons];
-                return <a key={link.label + link.url} href={link.url} aria-label={link.label} className="min-w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors">{Icon ? <Icon className="w-7 h-7" /> : <span className="text-xs px-2">{link.label}</span>}</a>;
-              })}</div>
+              <p className="text-white/80 text-sm mb-6">{footer.text}</p>
+              <div className="flex flex-wrap">
+                {footer.socialLinks.map((link) => {
+                  const Icon =
+                    socialIcons[link.label as keyof typeof socialIcons];
+                  return (
+                    <a
+                      key={link.label + link.url}
+                      href={link.url}
+                      aria-label={link.label}
+                      className="min-w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/40 transition-colors"
+                    >
+                      {Icon ? (
+                        <Icon className="w-7 h-7" />
+                      ) : (
+                        <span className="text-xs px-2">{link.label}</span>
+                      )}
+                    </a>
+                  );
+                })}
+              </div>
             </div>
             {/* Quick Links */}
             <div>
@@ -163,16 +184,12 @@ export default function Footer() {
                   <Phone className="w-5 h-5 text-primary mt-0.5" />
                   <div>
                     <p className="text-white/80">{contact.phone}</p>
-                    <p className="text-xs text-white/80/70">
-                      {contact.hours}
-                    </p>
+                    <p className="text-xs text-white/80/70">{contact.hours}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <Mail className="w-5 h-5 text-primary mt-0.5" />
-                  <p className="text-white/80">
-                    {contact.email}
-                  </p>
+                  <p className="text-white/80">{contact.email}</p>
                 </li>
                 <li className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
