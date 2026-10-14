@@ -1,3 +1,4 @@
+//app\(dashboard)\collections\[slug]\page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -146,10 +147,6 @@ export default function CollectionDetailPage() {
         <main className="section-padding">
           <div className="container-custom px-4 text-center">
             <h1 className="mb-4 font-heading text-3xl">Collection not found</h1>
-
-            <Link href="/collections">
-              <Button variant="outline">Back to Collections</Button>
-            </Link>
           </div>
         </main>
         <Footer />
@@ -170,14 +167,6 @@ export default function CollectionDetailPage() {
         />
 
         <div className="container-custom px-4 py-5">
-          <Link
-            href="/collections"
-            className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary md:text-base"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Collections
-          </Link>
-
           <CollectionFilters
             onFilterChange={setFilters}
             currentFilters={filters}
