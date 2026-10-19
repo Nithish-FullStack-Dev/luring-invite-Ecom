@@ -21,6 +21,9 @@ import { normalizeNewlines } from "@/lib/template-config";
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
   key?: string;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
   name?: string;
   text?: string;
   maxLength?: number;
@@ -69,7 +72,6 @@ export default function CustomizePage() {
   const [loadingMusic, setLoadingMusic] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
-  const [musicError, setMusicError] = useState("");
   const [showReview, setShowReview] = useState(false);
   const [showFinalPreview, setShowFinalPreview] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState("");
@@ -113,6 +115,8 @@ export default function CustomizePage() {
           throw new Error("This template has no editable frames.");
         setTemplate(templateResult.data);
         setFrames(loadedFrames);
+        setMusicTracks(templateResult.data.musicTracks || []);
+        setLoadingMusic(false);
         const initial: FramesData = {};
         loadedFrames.forEach((frame) => {
           const texts = Array.isArray(frame.placeholderConfig?.texts)
@@ -120,9 +124,8 @@ export default function CustomizePage() {
             : [];
           initial[String(frame.id)] = {};
           texts.forEach((field, index) => {
-            initial[String(frame.id)][`text_${index}`] = normalizeNewlines(
-              field.text,
-            );
+            initial[String(frame.id)][String(field.key ?? `text_${index}`)] =
+              normalizeNewlines(field.text);
           });
         });
         setFramesData(initial);
@@ -139,33 +142,6 @@ export default function CustomizePage() {
     void loadEditor();
     return () => controller.abort();
   }, [id]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const loadMusic = async () => {
-      setLoadingMusic(true);
-      setMusicError("");
-      try {
-        const response = await fetch("/api/music", {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        const result = await response.json();
-        if (!response.ok || result.status !== "success")
-          throw new Error(result.message || "Music list unavailable.");
-        setMusicTracks(result.data || []);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        setMusicError(
-          err instanceof Error ? err.message : "Music list unavailable.",
-        );
-      } finally {
-        if (!controller.signal.aborted) setLoadingMusic(false);
-      }
-    };
-    void loadMusic();
-    return () => controller.abort();
-  }, []);
 
   const currentFrame = frames[currentFrameIndex];
   const currentFrameKey = currentFrame ? String(currentFrame.id) : "";
@@ -379,7 +355,7 @@ export default function CustomizePage() {
               onClick={() => {
                 const defaults: Record<string, string> = {};
                 currentFields.forEach((field, index) => {
-                  defaults[`text_${index}`] = normalizeNewlines(field.text);
+                  defaults[String(field.key ?? `text_${index}`)] = normalizeNewlines(field.text);
                 });
                 setFramesData((previous) => ({
                   ...previous,
@@ -400,17 +376,16 @@ export default function CustomizePage() {
           ) : (
             <div className="space-y-4">
               {currentFields.map((field, index) => {
-                const value = normalizeNewlines(
-                  currentValues[`text_${index}`] ?? field.text,
-                );
-                const maxLength = Number(field.maxLength) || 500;
+                const fieldKey = String(field.key ?? `text_${index}`);
+                const value = normalizeNewlines(currentValues[fieldKey] ?? field.text);
+                const maxLength = Math.max(1, Math.min(2000, Number(field.maxLength) || 500));
                 return (
                   <div key={`${currentFrame.id}-${index}`}>
                     <label
                       htmlFor={`text-${currentFrame.id}-${index}`}
                       className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
-                      {field.key || field.name || `Text field ${index + 1}`}
+                      {field.label || field.key || field.name || `Text field ${index + 1}`}
                     </label>
                     <textarea
                       id={`text-${currentFrame.id}-${index}`}
@@ -418,14 +393,15 @@ export default function CustomizePage() {
                       onChange={(event) =>
                         updateText(
                           currentFrame.id,
-                          `text_${index}`,
+                          fieldKey,
                           event.target.value,
                         )
                       }
                       rows={Math.min(7, Math.max(2, value.split("\n").length))}
                       maxLength={maxLength}
+                      required={field.required === true}
                       className="w-full resize-y rounded-lg border border-gray-200 px-3 py-3 text-sm leading-6 outline-none transition focus:border-[#a86dcd] focus:ring-2 focus:ring-purple-100"
-                      placeholder="Enter invitation text..."
+                      placeholder={field.placeholder || "Enter invitation text..."}
                     />
                     <div className="mt-1 text-right text-xs text-gray-400">
                       {value.length} / {maxLength}
@@ -459,9 +435,6 @@ export default function CustomizePage() {
                 </option>
               ))}
             </select>
-            {musicError && (
-              <p className="mt-2 text-xs text-red-600">{musicError}</p>
-            )}
             {selectedMusic && (
               <p className="mt-2 truncate text-xs text-gray-500">
                 Selected: {selectedMusic.title}
@@ -591,10 +564,10 @@ export default function CustomizePage() {
                       {textFields.map((field, index) => (
                         <div key={index}>
                           <p className="text-xs font-medium text-gray-500">
-                            {field.key || `Text ${index + 1}`}
+                            {field.label || field.key || `Text ${index + 1}`}
                           </p>
                           <p className="whitespace-pre-wrap break-words text-sm text-gray-800">
-                            {values[`text_${index}`] ?? field.text}
+                            {values[String(field.key ?? `text_${index}`)] ?? field.text}
                           </p>
                         </div>
                       ))}

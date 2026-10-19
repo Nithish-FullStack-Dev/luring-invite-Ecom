@@ -40,6 +40,8 @@ model Template {
   price                   Decimal            @default(299.00) @db.Decimal(10, 2)
   durationSeconds         Int                @default(0)
   active                  Boolean            @default(true)
+  musicConfigured         Boolean            @default(false)
+  musicTracks             MusicTrack[]        @relation("TemplateMusic")
   legacyPlaceholderConfig Json?
   categories              TemplateCategory[]
   frames                  TemplateFrame[]
@@ -83,6 +85,7 @@ model MusicTrack {
   path      String   @unique
   duration  Int?
   enabled   Boolean  @default(true)
+  templates Template[] @relation("TemplateMusic")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

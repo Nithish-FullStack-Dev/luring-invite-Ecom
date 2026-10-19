@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serializeTemplate } from "@/lib/serializers";
+import { templateAdminFailure } from "@/lib/template-api-auth";
+import { hasUniqueTextKeys } from "@/lib/template-config";
 
 function slugify(value: string) {
   return (
@@ -16,6 +18,9 @@ function slugify(value: string) {
 
 function error(message: string, status = 400) {
   return NextResponse.json({ status: "error", message }, { status });
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 export async function GET(request: NextRequest) {
@@ -48,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       status: "success",
-      data: templates.map(serializeTemplate),
+      data: templates.map((template) => serializeTemplate(template)),
     });
   } catch (error) {
     console.error("GET /api/templates failed:", error);
@@ -64,8 +69,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authFailure = await templateAdminFailure(true);
+  if (authFailure) return authFailure;
   try {
-    const body = await request.json();
+    const parsed: unknown = await request.json();
+    if (!isRecord(parsed)) return error("Request body must be an object.");
+    const body = parsed;
 
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const description =
@@ -76,6 +85,7 @@ export async function POST(request: NextRequest) {
       typeof body.thumbnail === "string" ? body.thumbnail.trim() : "";
     const sourceVideo =
       typeof body.sourceVideo === "string" ? body.sourceVideo.trim() : "";
+    const requestedSlug = typeof body.slug === "string" ? body.slug.trim() : "";
     const previewVideo =
       typeof body.previewVideo === "string" && body.previewVideo.trim()
         ? body.previewVideo.trim()
@@ -90,33 +100,64 @@ export async function POST(request: NextRequest) {
       return error("Template duration must be a positive number of seconds.");
     }
     if (!thumbnail) return error("A thumbnail path is required.");
-    if (!sourceVideo) return error("A source video path is required.");
     if (frames.length === 0) return error("Add at least one frame.");
 
-    for (const [index, frame] of frames.entries()) {
+    const validFrames: Record<string, unknown>[] = [];
+    for (const [index, value] of frames.entries()) {
       if (
-        !frame ||
-        typeof frame.sourceVideo !== "string" ||
-        !frame.sourceVideo.trim()
+        !isRecord(value) ||
+        typeof value.sourceVideo !== "string" ||
+        !value.sourceVideo.trim()
       ) {
         return error(`Frame ${index + 1} requires a source video.`);
       }
-      if (
-        !frame.placeholderConfig ||
-        typeof frame.placeholderConfig !== "object"
-      ) {
+      if (!isRecord(value.placeholderConfig)) {
         return error(
           `Frame ${index + 1} has invalid placeholder configuration.`,
         );
       }
+      if (!hasUniqueTextKeys(value.placeholderConfig)) {
+        return error(`Frame ${index + 1} has duplicate editable field keys.`);
+      }
+      validFrames.push(value);
     }
 
-    const baseSlug = slugify(
-      typeof body.slug === "string" && body.slug.trim() ? body.slug : title,
-    );
-    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+    const baseSlug = slugify(requestedSlug || title);
+    const slug = requestedSlug ? baseSlug : `${baseSlug}-${Date.now().toString(36)}`;
+    if (Array.isArray(body.musicTrackIds) && body.musicTrackIds.some((id: unknown) => typeof id !== "string" || !id.trim())) {
+      return error("musicTrackIds must contain valid track IDs.");
+    }
+    const requestedMusicIds: string[] = Array.isArray(body.musicTrackIds)
+      ? [...new Set((body.musicTrackIds as unknown[]).filter((id): id is string => typeof id === "string").map((id) => id.trim()))]
+      : [];
+    const configuredMusic = body.musicConfigured === true || Array.isArray(body.musicTrackIds) || Boolean(body.music);
+    const requestedMusic = isRecord(body.music) ? body.music : null;
+    if (requestedMusicIds.length) {
+      const count = await prisma.musicTrack.count({ where: { id: { in: requestedMusicIds } } });
+      if (count !== requestedMusicIds.length) return error("One or more selected music tracks do not exist.");
+    }
 
     const created = await prisma.$transaction(async (tx) => {
+      const musicTrackIds = [...requestedMusicIds];
+      if (
+        requestedMusic &&
+        typeof requestedMusic.title === "string" &&
+        typeof requestedMusic.path === "string"
+      ) {
+        const track = await tx.musicTrack.create({
+          data: {
+            title: requestedMusic.title.trim(),
+            path: requestedMusic.path.trim(),
+            duration:
+              Number.isFinite(Number(requestedMusic.duration)) &&
+              Number(requestedMusic.duration) > 0
+                ? Number(requestedMusic.duration)
+                : null,
+            enabled: true,
+          },
+        });
+        musicTrackIds.push(track.id);
+      }
       const template = await tx.template.create({
         data: {
           title,
@@ -124,20 +165,22 @@ export async function POST(request: NextRequest) {
           description: description || null,
           thumbnail,
           previewVideo,
-          sourceVideo,
+          sourceVideo: sourceVideo || null,
           price: new Prisma.Decimal(price.toFixed(2)),
           durationSeconds,
           active,
+          musicConfigured: configuredMusic,
+          ...(configuredMusic
+            ? { musicTracks: { connect: musicTrackIds.map((id) => ({ id })) } }
+            : {}),
           frames: {
-            create: frames.map((frame: any, index: number) => ({
-              frameNumber: Number.isInteger(Number(frame.frameNumber))
-                ? Number(frame.frameNumber)
-                : index + 1,
+            create: validFrames.map((frame, index) => ({
+              frameNumber: index + 1,
               title:
                 typeof frame.title === "string" && frame.title.trim()
                   ? frame.title.trim()
                   : `Frame ${index + 1}`,
-              sourceVideo: frame.sourceVideo.trim(),
+              sourceVideo: typeof frame.sourceVideo === "string" ? frame.sourceVideo.trim() : "",
               previewImage:
                 typeof frame.previewImage === "string" &&
                 frame.previewImage.trim()
@@ -156,33 +199,15 @@ export async function POST(request: NextRequest) {
         include: {
           categories: { include: { category: true } },
           frames: { orderBy: { frameNumber: "asc" } },
+          musicTracks: true,
         },
       });
-
-      if (
-        body.music &&
-        typeof body.music.title === "string" &&
-        typeof body.music.path === "string"
-      ) {
-        await tx.musicTrack.create({
-          data: {
-            title: body.music.title.trim(),
-            path: body.music.path.trim(),
-            duration:
-              Number.isFinite(Number(body.music.duration)) &&
-              Number(body.music.duration) > 0
-                ? Number(body.music.duration)
-                : null,
-            enabled: true,
-          },
-        });
-      }
 
       return template;
     });
 
     return NextResponse.json(
-      { status: "success", data: serializeTemplate(created) },
+      { status: "success", data: serializeTemplate(created, true) },
       { status: 201 },
     );
   } catch (err) {

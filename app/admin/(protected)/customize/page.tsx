@@ -20,17 +20,8 @@ type Template = {
   frames: { id: number; previewImage?: string | null }[];
 };
 
-const categoryOptions = [
-  { label: "All Templates", value: "all" },
-  { label: "Wedding", value: "wedding" },
-  { label: "Birthday", value: "birthday" },
-  { label: "First Birthday", value: "first-birthday" },
-];
-
-export default function page() {
+export default function Page() {
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [category, setCategory] = useState("all");
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -40,15 +31,14 @@ export default function page() {
   const [deleting, setDeleting] = useState(false);
 
   const loadTemplates = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
-      const response = await fetch(`/api/customize`, {
+      const response = await fetch(`/api/customize?manage=true`, {
         cache: "no-store",
       });
       const result = await response.json();
       if (!response.ok || result.status !== "success")
         throw new Error(result.message || "Could not load templates.");
+      setError("");
       setTemplates(result.data || []);
     } catch (err) {
       setError(
@@ -58,21 +48,11 @@ export default function page() {
     } finally {
       setLoading(false);
     }
-  }, [category, search]);
-
-  useEffect(() => {
-    const requestedCategory = new URLSearchParams(window.location.search).get(
-      "category",
-    );
-    if (
-      requestedCategory &&
-      categoryOptions.some((option) => option.value === requestedCategory)
-    ) {
-      setCategory(requestedCategory);
-    }
   }, []);
 
   useEffect(() => {
+    // The async fetch updates this view after the response arrives.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadTemplates();
   }, [loadTemplates]);
 
@@ -123,7 +103,10 @@ export default function page() {
             Check your Neon connection and run the Prisma seed command.
           </p>
           <button
-            onClick={() => void loadTemplates()}
+            onClick={() => {
+              setLoading(true);
+              void loadTemplates();
+            }}
             className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-white"
           >
             Retry

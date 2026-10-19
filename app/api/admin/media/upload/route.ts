@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { templateAdminFailure } from "@/lib/template-api-auth";
 
 export const maxDuration = 60;
 
@@ -10,6 +11,7 @@ const ALLOWED: Record<string, Set<string>> = {
   templates: new Set(["mp4", "mov", "webm", "m4v"]),
   uploads: new Set(["jpg", "jpeg", "png", "webp", "gif", "avif"]),
   music: new Set(["mp3", "wav", "m4a", "aac", "ogg", "flac"]),
+  fonts: new Set(["ttf", "otf"]),
 };
 
 function jsonError(message: string, status: number) {
@@ -17,6 +19,8 @@ function jsonError(message: string, status: number) {
 }
 
 export async function POST(request: NextRequest) {
+  const authFailure = await templateAdminFailure(true);
+  if (authFailure) return authFailure;
   try {
     const formData = await request.formData();
     const file = formData.get("file");
@@ -24,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     if (!(file instanceof File))
       return jsonError("Choose a file to upload.", 400);
-    if (!(kind in ALLOWED)) return jsonError("Invalid upload category.", 400);
+    if (!Object.hasOwn(ALLOWED, kind)) return jsonError("Invalid upload category.", 400);
     if (file.size <= 0) return jsonError("The selected file is empty.", 400);
     if (file.size > MAX_FILE_SIZE)
       return jsonError("Maximum upload size is 500 MB.", 413);
@@ -37,7 +41,9 @@ export async function POST(request: NextRequest) {
           ? "Upload a supported video file (MP4, MOV, WEBM, M4V)."
           : kind === "uploads"
             ? "Upload a supported image file (JPG, PNG, WEBP, GIF, AVIF)."
-            : "Upload a supported audio file (MP3, WAV, M4A, AAC, OGG, FLAC).",
+          : kind === "music"
+            ? "Upload a supported audio file (MP3, WAV, M4A, AAC, OGG, FLAC)."
+            : "Upload a supported font file (TTF or OTF).",
         400,
       );
     }
