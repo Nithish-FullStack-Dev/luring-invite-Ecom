@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { templateAdminFailure } from "@/lib/template-api-auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -7,9 +8,11 @@ const fail = (message: string, status = 400) =>
   NextResponse.json({ status: "error", message }, { status });
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
+  const authFailure = await templateAdminFailure(true);
+  if (authFailure) return authFailure;
   const id = (await ctx.params).id;
 
-  if (!/^\d+$/.test(id) || Number(id) < 1)
+  if (!id || id.length > 64)
     return fail("Invalid music track ID.");
   try {
     const body = await request.json();

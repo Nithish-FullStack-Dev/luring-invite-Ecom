@@ -8,17 +8,43 @@ import {
   normalizeNewlines,
   normalizeConfigForEditor,
 } from "@/lib/template-config";
+import { ffmpegProgress, ffmpegTransitionName, resolveSceneTransition, resolveTextMotion, timeForEasedProgress } from "@/lib/text-motion";
+import { resolveFontAsset, serverFontPath } from "@/lib/font-registry";
+import { revealUnits } from "@/lib/text-reveal";
+import {
+  compositionPositionPixels,
+  wrapInvitationText,
+} from "@/lib/text-layout";
 
 const execFileAsync = promisify(execFile);
 const PROJECT_ROOT = process.cwd();
 const PUBLIC_ROOT = path.join(PROJECT_ROOT, "public");
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
+const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
 const MAX_RENDER_SECONDS = Math.max(
   30,
   Number(process.env.MAX_RENDER_SECONDS || 180),
 );
 
 type FrameInput = Record<string, unknown>;
+type RendererTextConfig = Record<string, unknown> & {
+  key?: unknown;
+  text?: unknown;
+  font?: unknown;
+  fontFile?: unknown;
+  fontSize?: unknown;
+  fontColor?: unknown;
+  color?: unknown;
+  x?: unknown;
+  y?: unknown;
+  position?: { x?: unknown; y?: unknown } | null;
+  alignment?: unknown;
+  anim?: unknown;
+  enable?: unknown;
+  start?: unknown;
+  end?: unknown;
+  alpha?: unknown;
+};
 type RenderFrame = {
   id: number | string;
   frameNumber: number;
@@ -36,9 +62,10 @@ type GenerateOptions = {
   framesData: Record<string, FrameInput>;
   musicPath?: string | null;
 };
+type CanvasSize = { width: number; height: number };
 
-function toProjectRelative(absPath: string): string {
-  return path.relative(PROJECT_ROOT, absPath).split(path.sep).join("/");
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function normalizeAbsoluteForConcat(absPath: string): string {
@@ -55,15 +82,21 @@ function colorForFfmpeg(value: unknown): string {
   return "black";
 }
 
-function validPosition(value: unknown, axis: "x" | "y"): string {
-  const raw = String(value ?? (axis === "x" ? "center" : "center")).trim();
-  if (["center", "centre", "middle"].includes(raw.toLowerCase())) {
-    return axis === "x" ? "(w-text_w)/2" : "(h-text_h)/2";
-  }
-  if (/^-?\d+(\.\d+)?$/.test(raw)) return raw;
-  // Accept FFmpeg position expressions, not arbitrary filter syntax.
-  if (/^[a-zA-Z0-9_ ()+*/.\-]+$/.test(raw) && /[wh]/i.test(raw)) return raw;
-  return "0";
+function validPosition(
+  value: unknown,
+  axis: "x" | "y",
+  alignment: "left" | "center" | "right" = "center",
+  compositionDimension: number,
+): string {
+  const anchor = compositionPositionPixels(
+    value,
+    compositionDimension,
+    50,
+    axis,
+  );
+  if (axis !== "x" || alignment === "left") return String(anchor);
+  if (alignment === "right") return `(${anchor}-text_w)`;
+  return `(${anchor}-text_w/2)`;
 }
 
 function validEnable(value: unknown): string | null {
@@ -90,57 +123,15 @@ function validEnable(value: unknown): string | null {
   return null;
 }
 
-function fontName(value: unknown): string {
-  const name = path.basename(String(value ?? "DejaVuSans.ttf")).trim();
-  const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const aliases: Record<string, string> = {
-    chopinscriptregular: "chopinscript.ttf",
-    chopinscript: "chopinscript.ttf",
-    chopinscriptttf: "chopinscript.ttf",
-    philosopherregular: "Philosopher-Regular.ttf",
-    philosopherregularttf: "Philosopher-Regular.ttf",
-    philosopher: "Philosopher-Regular.ttf",
-    greatvibesregular: "GreatVibes-Regular.ttf",
-    greatvibesregularttf: "GreatVibes-Regular.ttf",
-    greatvibes: "GreatVibes-Regular.ttf",
-    opensansregular: "OpenSans-Regular.ttf",
-    opensansregularttf: "OpenSans-Regular.ttf",
-    opensansbold: "OpenSans-Bold.ttf",
-    opensansboldttf: "OpenSans-Bold.ttf",
-    playfairdisplaybold: "PlayfairDisplay-Bold.ttf",
-    playfairdisplayboldttf: "PlayfairDisplay-Bold.ttf",
-    dejavusansttf: "DejaVuSans.ttf",
-    dejavu: "DejaVuSans.ttf",
-  };
-  return aliases[normalized] || name;
-}
-
-function wrapLines(raw: string, fontSize: number): string {
-  const maxChars = Math.max(
-    10,
-    Math.min(90, Math.floor(930 / (fontSize * 0.56))),
-  );
-  const output: string[] = [];
-  for (const sourceLine of normalizeNewlines(raw).split("\n")) {
-    const words = sourceLine.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      output.push("");
-      continue;
-    }
-    let line = "";
-    for (const word of words) {
-      if (!line) {
-        line = word;
-      } else if ((line + " " + word).length <= maxChars) {
-        line += " " + word;
-      } else {
-        output.push(line);
-        line = word;
-      }
-    }
-    if (line) output.push(line);
-  }
-  return output.join("\n");
+function applyLetterSpacing(value: string, pixels: number, fontSize: number): string {
+  const hairSpaceWidth = Math.max(1, fontSize * 0.1);
+  const count = Math.min(6, Math.max(0, Math.round(pixels / hairSpaceWidth)));
+  if (!count) return value;
+  const spacer = "\u200a".repeat(count);
+  const characters = typeof Intl.Segmenter === "function"
+    ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value), (part) => part.segment)
+    : Array.from(value);
+  return characters.join(spacer);
 }
 
 function ffmpegEscapeFilterPath(relativePath: string): string {
@@ -156,19 +147,64 @@ async function runFfmpeg(args: string[]): Promise<void> {
       maxBuffer: 20 * 1024 * 1024,
       windowsHide: true,
     });
-  } catch (error: any) {
-    const stderr = String(error?.stderr || error?.message || "FFmpeg failed.");
+  } catch (error: unknown) {
+    const stderrValue = isRecord(error) ? error.stderr : undefined;
+    const stderr = String(
+      stderrValue || (error instanceof Error ? error.message : "FFmpeg failed."),
+    );
     throw new Error(stderr.slice(-6000));
   }
 }
 
-function getFrameTexts(configValue: unknown, frameInput: FrameInput): any[] {
+type VideoMetadata = { width: number; height: number; duration: number | null };
+
+async function probeVideo(filePath: string): Promise<VideoMetadata> {
+  try {
+    const { stdout } = await execFileAsync(
+      FFPROBE,
+      [
+        "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,duration",
+        "-show_entries", "format=duration", "-of", "json", filePath,
+      ],
+      { cwd: PROJECT_ROOT, timeout: 15000, maxBuffer: 1024 * 1024, windowsHide: true },
+    );
+    const result = JSON.parse(stdout);
+    const stream = result.streams?.[0] ?? {};
+    const duration = Number(stream.duration ?? result.format?.duration);
+    return {
+      width: Math.max(2, Number(stream.width) || 1080),
+      height: Math.max(2, Number(stream.height) || 1920),
+      duration: Number.isFinite(duration) && duration > 0 ? duration : null,
+    };
+  } catch {
+    return { width: 1080, height: 1920, duration: null };
+  }
+}
+
+function outputCanvas(metadata: VideoMetadata): CanvasSize {
+  const factor = Math.min(1080 / metadata.width, 1920 / metadata.height);
+  const even = (value: number) => Math.max(2, Math.round(value / 2) * 2);
+  return {
+    width: even(metadata.width * factor),
+    height: even(metadata.height * factor),
+  };
+}
+
+function getFrameTexts(configValue: unknown, frameInput: FrameInput): RendererTextConfig[] {
   const config = normalizeConfigForEditor(configValue);
   const texts = Array.isArray(config.texts) ? config.texts : [];
-  return texts.map((item: any, index: number) => ({
-    ...item,
-    text: normalizeNewlines(frameInput[`text_${index}`] ?? item.text),
-  }));
+  return texts.filter((value) => !isRecord(value) || value.visible !== false).map((value, index) => {
+    const item = isRecord(value) ? value : {};
+    return {
+      ...item,
+      text: normalizeNewlines(
+        frameInput[String(item.key ?? `text_${index}`)] ??
+          frameInput[`text_${index}`] ??
+          item.text,
+      ),
+    };
+  });
 }
 
 async function buildFrameFilterScript(
@@ -176,15 +212,33 @@ async function buildFrameFilterScript(
   frameInput: FrameInput,
   workDirRelative: string,
   frameIndex: number,
+  canvas: CanvasSize,
+  sceneDuration: number,
 ): Promise<string> {
   const normalizedConfig = normalizeConfigForEditor(frame.placeholderConfig);
   const texts = getFrameTexts(normalizedConfig, frameInput);
-  const filters: string[] = [
-    "scale=1080:1920:force_original_aspect_ratio=decrease",
-    "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
-    "setsar=1",
-    "fps=30",
-  ];
+  const fit = ["cover", "fill"].includes(String(normalizedConfig.backgroundFit))
+    ? String(normalizedConfig.backgroundFit)
+    : "contain";
+  const focalX = finiteSeconds(normalizedConfig.focalX, 50, 0, 100) / 100;
+  const focalY = finiteSeconds(normalizedConfig.focalY, 50, 0, 100) / 100;
+  let filters: string[] = fit === "fill"
+    ? [`scale=${canvas.width}:${canvas.height}`, "setsar=1", "fps=30"]
+    : fit === "cover"
+      ? [
+          `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=increase`,
+          `crop=${canvas.width}:${canvas.height}:(iw-${canvas.width})*${focalX.toFixed(4)}:(ih-${canvas.height})*${focalY.toFixed(4)}`,
+          "setsar=1", "fps=30",
+        ]
+      : [
+          `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`,
+          `pad=${canvas.width}:${canvas.height}:(ow-iw)/2:(oh-ih)/2`,
+          "setsar=1", "fps=30",
+        ];
+  filters.unshift("setpts=PTS-STARTPTS");
+  const graphParts: string[] = [];
+  let chainInput = "[0:v]";
+  let chainIndex = 0;
 
   let textIndex = 0;
   for (const textConfig of texts) {
@@ -192,49 +246,147 @@ async function buildFrameFilterScript(
       6,
       Math.min(240, Math.round(Number(textConfig.fontSize) || 40)),
     );
-    const wrapped = wrapLines(String(textConfig.text ?? ""), fontSize);
+    const boxWidth = finiteSeconds(textConfig.boxWidth, 90, 10, 100) / 100;
+    const wrapped = wrapInvitationText(String(textConfig.text ?? ""), fontSize, canvas.width * boxWidth);
     if (!wrapped.trim()) continue;
     const lines = wrapped.split("\n");
+    const rawAlignment = String(textConfig.alignment ?? "center").toLowerCase();
+    const alignment: "left" | "center" | "right" =
+      rawAlignment === "left" || rawAlignment === "right" ? rawAlignment : "center";
 
-    const font = fontName(textConfig.fontFile ?? textConfig.font);
-    const fontCandidate = path.join(PUBLIC_ROOT, "media", "fonts", font);
-    let actualFont = fontCandidate;
+    const fontValue = textConfig.fontFile ?? textConfig.font ?? "DejaVuSans.ttf";
+    const resolvedFont = resolveFontAsset(fontValue);
+    const fontRelative = serverFontPath(fontValue, textConfig.fontWeight);
+    const actualFont = path.resolve(PROJECT_ROOT, fontRelative);
     try {
-      await fs.access(fontCandidate);
+      await fs.access(actualFont);
     } catch {
-      actualFont = path.join(PUBLIC_ROOT, "media", "fonts", "DejaVuSans.ttf");
+      throw new Error(`Font asset for "${resolvedFont.label}" is missing at ${fontRelative}. Upload a TTF/OTF font or select one of the installed CRM fonts.`);
     }
-    const fontRelative = toProjectRelative(actualFont);
 
-    const x = validPosition(textConfig.x ?? textConfig.position?.x, "x");
+    const x = validPosition(
+      textConfig.x ?? textConfig.position?.x,
+      "x",
+      alignment,
+      canvas.width,
+    );
     const rawY = String(
       textConfig.y ?? textConfig.position?.y ?? "center",
     ).trim();
-    let baseY = validPosition(rawY, "y");
-    const isVerticalCenter = [
-      "center",
-      "centre",
-      "middle",
-      "(h-text_h)/2",
-    ].includes(rawY.toLowerCase());
-    const lineSpacing = 8;
-    if (isVerticalCenter) {
-      const blockHeight =
-        lines.length * fontSize + Math.max(0, lines.length - 1) * lineSpacing;
-      baseY = `(h/2)-(${Math.round(blockHeight / 2)})`;
-    }
+    const yAnchor = compositionPositionPixels(
+      rawY,
+      canvas.height,
+      50,
+      "y",
+    );
+    const lineSpacing = finiteSeconds(textConfig.lineSpacing, 8, -10, 80);
+    const blockHeight =
+      lines.length * fontSize + Math.max(0, lines.length - 1) * lineSpacing;
+    const baseY = `(${yAnchor}-${Math.round(blockHeight / 2)})`;
 
     const color = colorForFfmpeg(textConfig.fontColor ?? textConfig.color);
+    const textOpacity = finiteSeconds(textConfig.opacity, 1, 0, 1);
+    const strokeWidth = Math.round(finiteSeconds(textConfig.strokeWidth, 0, 0, 20));
+    const strokeColor = colorForFfmpeg(textConfig.strokeColor);
+    const shadowX = Math.round(finiteSeconds(textConfig.shadowX, 0, -40, 40));
+    const shadowY = Math.round(finiteSeconds(textConfig.shadowY, 0, -40, 40));
+    const shadowColor = colorForFfmpeg(textConfig.shadowColor);
+    const backgroundOpacity = finiteSeconds(textConfig.backgroundOpacity, 0, 0, 1);
+    const backgroundColor = colorForFfmpeg(textConfig.backgroundColor);
+    const backgroundPadding = Math.round(finiteSeconds(textConfig.backgroundPadding, 8, 0, 60));
+    const letterSpacing = resolvedFont.supportsLetterSpacing
+      ? finiteSeconds(textConfig.letterSpacing, 0, 0, 12)
+      : 0;
     const legacyTiming =
       textConfig.start !== undefined && textConfig.end !== undefined
         ? `between(t,${Number(textConfig.start)},${Number(textConfig.end)})`
         : null;
-    const enable = validEnable(textConfig.enable ?? legacyTiming);
-    const animation = getTextAnimation(textConfig.anim);
-    const animationEnd = animation.delay + animation.duration;
-    const animationDelay = animation.delay.toFixed(3);
-    const animationDuration = animation.duration.toFixed(3);
+    const visibleStart = finiteSeconds(textConfig.visibleStart, 0, 0, sceneDuration);
+    const visibleEnd = textConfig.visibleEnd === null || textConfig.visibleEnd === ""
+      ? sceneDuration
+      : finiteSeconds(textConfig.visibleEnd, sceneDuration, visibleStart, sceneDuration);
+    const timeEnable = `between(t,${visibleStart.toFixed(3)},${visibleEnd.toFixed(3)})`;
+    const legacyEnable = validEnable(textConfig.enable ?? legacyTiming);
+    const enable = legacyEnable ? `(${legacyEnable})*(${timeEnable})` : timeEnable;
+    const animation = getTextAnimation(textConfig.anim, sceneDuration);
     const alpha = validEnable(textConfig.alpha);
+    const rotation = finiteSeconds(textConfig.rotation, 0, -180, 180);
+    const isRotated = Math.abs(rotation) > 0.05;
+    const isTextReveal = animation.type === "typewriter" || animation.type === "character-reveal" || animation.type === "word-reveal";
+    const usesLayer = isRotated || textConfig.italic === true || animation.type === "rotate-in" || animation.exitType === "rotate-out" || animation.emphasisType === "rotate";
+    const layerWidth = Math.max(80, Math.round(canvas.width * boxWidth));
+    const layerHeight = Math.max(60, Math.round(canvas.height * finiteSeconds(textConfig.boxHeight, 20, 5, 90) / 100));
+    const rotatedFilters: string[] = [];
+    const rotatedBg = `rotbg_${frameIndex}_${textIndex}`;
+    const rotatedOut = `rotout_${frameIndex}_${textIndex}`;
+    if (usesLayer) {
+      graphParts.push(`${chainInput}${filters.length ? filters.join(",") : "null"}[base_${chainIndex}]`);
+      chainInput = `[base_${chainIndex}]`;
+      chainIndex++;
+      filters = [];
+      graphParts.push(`color=c=black@0.0:s=${layerWidth}x${layerHeight}:r=30:d=${sceneDuration},format=rgba[${rotatedBg}]`);
+    }
+
+    const finishRotatedLayer = () => {
+      if (!usesLayer) return;
+      const rotatedLabel = `${rotatedOut}_layer`;
+      const rotateEntranceProgress = easedProgress(animation.delay, animation.duration, animation.easing);
+      const rotateExitProgress = easedProgress(animation.exitStart, animation.exitDuration, animation.exitEasing);
+      const baseAngle = rotation * Math.PI / 180;
+      const rotateIn = animation.type === "rotate-in" ? `(1-${rotateEntranceProgress})*0.174533` : "0";
+      const rotateOut = animation.exitType === "rotate-out" ? `if(lt(t,${animation.exitStart.toFixed(3)}),0,(${rotateExitProgress})*0.174533)` : "0";
+      const mainRotate = animation.emphasisType === "rotate" ? `+sin(t*1.3)*0.05236*${animation.intensity.toFixed(3)}*between(t,${visibleStart.toFixed(3)},${visibleEnd.toFixed(3)})` : "";
+      const angleExpr = `${baseAngle.toFixed(6)}+(${rotateIn})+(${rotateOut})${mainRotate}`;
+      const animatedRotation = animation.type === "rotate-in" || animation.exitType === "rotate-out" || animation.emphasisType === "rotate";
+      const rotateOutW = animatedRotation ? `ceil(hypot(iw,ih))` : "rotw(iw)";
+      const rotateOutH = animatedRotation ? `ceil(hypot(iw,ih))` : "roth(ih)";
+      const italicFilter = textConfig.italic === true ? ",shear=shx=0.2:c=black@0.0" : "";
+      graphParts.push(`[${rotatedBg}]${rotatedFilters.join(",")}${italicFilter},rotate=a='${angleExpr}':c=black@0.0:ow='${rotateOutW}':oh='${rotateOutH}':bilinear=1,format=rgba[${rotatedLabel}]`);
+      const positionAnchor = (raw: unknown, axis: "x" | "y") => {
+        const dimension = axis === "x" ? canvas.width : canvas.height;
+        return String(compositionPositionPixels(raw, dimension, 50, axis));
+      };
+      const anchorX = positionAnchor(textConfig.x ?? textConfig.position?.x, "x");
+      const anchorY = positionAnchor(textConfig.y ?? textConfig.position?.y, "y");
+      const rotationExtents = animatedRotation ? Math.ceil(Math.hypot(layerWidth, layerHeight)) : layerWidth;
+      const alignOffset = alignment === "left" ? 0 : alignment === "right" ? layerWidth : layerWidth / 2;
+      const targetX = `(${anchorX})-(${alignOffset})+(${(layerWidth - rotationExtents) / 2})`;
+      const targetY = `(${anchorY})-overlay_h/2`;
+      let layerX = targetX;
+      let layerY = targetY;
+      const isSlideEntrance = animation.type === "slide-in";
+      const exitIsSlide = animation.exitType === "slide-out";
+      const isSlideExitOnly = !isSlideEntrance && exitIsSlide;
+      const start = animation.delay;
+      const enterEnd = start + animation.duration;
+      const enterProgress = easedProgress(start, animation.duration, animation.easing);
+      const exitStart = animation.exitStart;
+      const exitProgress = easedProgress(exitStart, animation.exitDuration, animation.exitEasing);
+      const offX = animation.direction === "left" ? "-overlay_w" : "main_w";
+      const offY = animation.direction === "top" ? "-overlay_h" : "main_h";
+      const horizontal = animation.direction === "left" || animation.direction === "right";
+      const target = horizontal ? targetX : targetY;
+      const from = horizontal ? offX : offY;
+      if (isSlideEntrance) {
+        const entrance = `if(lt(t,${start.toFixed(3)}),${from},if(lt(t,${enterEnd.toFixed(3)}),${from}+((${target})-(${from}))*(${enterProgress}),${target}))`;
+        const motion = exitIsSlide
+          ? `if(lt(t,${start.toFixed(3)}),${from},if(lt(t,${enterEnd.toFixed(3)}),${from}+((${target})-(${from}))*(${enterProgress}),if(lt(t,${exitStart.toFixed(3)}),${target},(${target})+((${from})-(${target}))*(${exitProgress}))))`
+          : entrance;
+        if (horizontal) layerX = motion; else layerY = motion;
+      } else if (isSlideExitOnly) {
+        const motion = `if(lt(t,${exitStart.toFixed(3)}),${target},(${target})+((${from})-(${target}))*(${exitProgress}))`;
+        if (horizontal) layerX = motion; else layerY = motion;
+      }
+      if (animation.type === "cinematic-title") {
+        const cinematicY = `if(lt(t,${start.toFixed(3)}),(${targetY})+36,if(lt(t,${enterEnd.toFixed(3)}),(${targetY})+36*(1-(${enterProgress})),${targetY}))`;
+        layerY = cinematicY;
+      }
+      if (animation.emphasisType === "float") layerY = `(${layerY})+12*${animation.intensity.toFixed(3)}*sin(t*2.1)*between(t,${visibleStart.toFixed(3)},${visibleEnd.toFixed(3)})`;
+      if (animation.emphasisType === "drift") layerX = `(${layerX})+18*${animation.intensity.toFixed(3)}*sin(t*0.45)*between(t,${visibleStart.toFixed(3)},${visibleEnd.toFixed(3)})`;
+      graphParts.push(`${chainInput}[${rotatedLabel}]overlay=x='${layerX}':y='${layerY}':format=auto[base_${chainIndex}]`);
+      chainInput = `[base_${chainIndex}]`;
+      chainIndex++;
+    };
 
     // Draw each line separately so every line can be centered independently.
     // This avoids the visual left-alignment that drawtext applies to shorter
@@ -247,10 +399,15 @@ async function buildFrameFilterScript(
         lineIndex === 0
           ? baseY
           : `${baseY}+(${lineIndex * (fontSize + lineSpacing)})`;
+      const localBlockHeight = lines.length * fontSize + Math.max(0, lines.length - 1) * lineSpacing;
+      const localY = `(h-${localBlockHeight})/2+${lineIndex * (fontSize + lineSpacing)}`;
+      const localX = alignment === "left" ? "0" : alignment === "right" ? "w-text_w" : "(w-text_w)/2";
+      const outputFilters = usesLayer ? rotatedFilters : filters;
 
       const writeTextFile = async (suffix: string, value: string) => {
         const relative = `${workDirRelative}/frame-${frameIndex}-text-${textIndex}-line-${lineIndex}-${suffix}.txt`;
-        await fs.writeFile(path.join(PROJECT_ROOT, relative), value, "utf8");
+        const source = letterSpacing > 0 ? applyLetterSpacing(value, letterSpacing, fontSize) : value;
+        await fs.writeFile(path.join(PROJECT_ROOT, relative), source, "utf8");
         return relative;
       };
 
@@ -260,102 +417,178 @@ async function buildFrameFilterScript(
         yExpr: string,
         sizeExpr: string,
       ) => {
+        const scaledLineSpacing = `((${lineSpacing})*(${sizeExpr})/${fontSize})`;
+        const scaledBlockHeight = `(${lines.length}*(${sizeExpr})+${Math.max(0, lines.length - 1)}*${scaledLineSpacing})`;
+        const drawY = sizeExpr !== String(fontSize)
+          ? usesLayer
+            ? `(h-${scaledBlockHeight})/2+${lineIndex}*((${sizeExpr})+${scaledLineSpacing})`
+            : `(${yAnchor}-${scaledBlockHeight}/2)+${lineIndex}*((${sizeExpr})+${scaledLineSpacing})`
+          : yExpr;
         const params = [
           `fontfile='${ffmpegEscapeFilterPath(fontRelative)}'`,
           `textfile='${ffmpegEscapeFilterPath(textFileRelative)}'`,
           "expansion=none",
+          "text_shaping=1",
           `x='${xExpr}'`,
-          `y='${yExpr}'`,
+          `y='${drawY}'`,
           `fontsize='${sizeExpr}'`,
           `fontcolor=${color}`,
+          // The saved x/y are anchor points. FFmpeg's fix_bounds=1 silently
+          // clamps over-wide glyph runs to a text-box edge and shifts them.
+          "fix_bounds=0",
         ];
+        if (strokeWidth > 0) params.push(`borderw=${strokeWidth}`, `bordercolor=${strokeColor}`);
+        if (shadowX !== 0 || shadowY !== 0) params.push(`shadowx=${shadowX}`, `shadowy=${shadowY}`, `shadowcolor=${shadowColor}`);
+        if (backgroundOpacity > 0) {
+          params.push("box=1", `boxcolor=${backgroundColor}@${backgroundOpacity.toFixed(3)}`, `boxborderw=${backgroundPadding}`);
+        }
         return params;
       };
 
-      // Typewriter: render each character as its own layer and enable characters in sequence.
-      if (animation.type === "typewriter") {
-        const chars = Array.from(line);
-        const avgCharWidth = fontSize * 0.56;
-        const rawX = String(textConfig.x ?? textConfig.position?.x ?? "center")
-          .trim()
-          .toLowerCase();
-        const centered = ["center", "centre", "middle"].includes(rawX);
-        const rightAligned = rawX === "right";
-        const totalApproxWidth = chars.length * avgCharWidth;
-
-        for (let charIndex = 0; charIndex < chars.length; charIndex++) {
-          const char = chars[charIndex];
-          const charFile = await writeTextFile(`char-${charIndex}`, char);
-          const charX = centered
-            ? `(w-${totalApproxWidth.toFixed(2)})/2+${(charIndex * avgCharWidth).toFixed(2)}`
-            : rightAligned
-              ? `(${x})-${totalApproxWidth.toFixed(2)}+${(charIndex * avgCharWidth).toFixed(2)}`
-              : `(${x})+${(charIndex * avgCharWidth).toFixed(2)}`;
-          const charStart = (
-            animation.delay +
-            (animation.duration * charIndex) / Math.max(1, chars.length)
-          ).toFixed(3);
-          const params = makeParams(charFile, charX, y, String(fontSize));
-          const charEnable = `gte(t,${charStart})`;
-          params.push(
-            `enable='${enable ? `(${enable})*(${charEnable})` : charEnable}'`,
+      // Prefix stages keep the whole revealed portion together so FreeType can
+      // shape connected script glyphs and ligatures on every reveal step.
+      if (isTextReveal) {
+        const mode = animation.type === "word-reveal" ? "word" : "letter";
+        const units = revealUnits(line, mode);
+        const exitFade = ["fade-out", "zoom-out", "rotate-out"].includes(animation.exitType)
+          ? `if(lt(t,${animation.exitStart.toFixed(3)}),1,if(lt(t,${(animation.exitStart + animation.exitDuration).toFixed(3)}),1-(${easedProgress(animation.exitStart, animation.exitDuration, animation.exitEasing)}),0))`
+          : null;
+        const sizeParts: string[] = [];
+        if (animation.exitType === "zoom-out") {
+          sizeParts.push(`if(lt(t,${animation.exitStart.toFixed(3)}),1,1-0.14*(${easedProgress(animation.exitStart, animation.exitDuration, animation.exitEasing)}))`);
+        }
+        if (animation.emphasisType === "pulse") {
+          sizeParts.push(`1+0.025*${animation.intensity.toFixed(3)}*sin(t*2.2)`);
+        }
+        const revealSize = sizeParts.length ? `max(6,${fontSize}*(${sizeParts.join("*")}))` : String(fontSize);
+        let prefix = "";
+        for (let unitIndex = 0; unitIndex < units.length; unitIndex++) {
+          prefix += units[unitIndex];
+          const stageStart = timeForEasedProgress(animation.delay, animation.duration, animation.easing, unitIndex / units.length);
+          const stageEnd = unitIndex === units.length - 1
+            ? sceneDuration + 0.01
+            : timeForEasedProgress(animation.delay, animation.duration, animation.easing, (unitIndex + 1) / units.length);
+          const prefixFile = await writeTextFile(`reveal-${mode}-${unitIndex}`, prefix);
+          const params = makeParams(
+            prefixFile,
+            usesLayer ? localX : x,
+            usesLayer ? localY : y,
+            revealSize,
           );
-          if (alpha && /^if\(/i.test(alpha)) params.push(`alpha='${alpha}'`);
-          filters.push(`drawtext=${params.join(":")}`);
+          const startCheck = unitIndex === 0 ? "gt" : "gte";
+          const stageEnable = `${startCheck}(t,${stageStart.toFixed(6)})*lt(t,${stageEnd.toFixed(6)})`;
+          params.push(`enable='(${enable})*(${stageEnable})'`);
+          const alphaExpressions = [
+            exitFade ? `(${exitFade})` : "",
+            alpha && /^if\(/i.test(alpha) ? `(${alpha})` : "",
+            textOpacity < 1 ? textOpacity.toFixed(3) : "",
+          ].filter(Boolean);
+          if (alphaExpressions.length) params.push(`alpha='${alphaExpressions.join("*")}'`);
+          outputFilters.push(`drawtext=${params.join(":")}`);
         }
         continue;
       }
-
       const textFileRelative = await writeTextFile("text", line);
       let animatedX = x;
       let animatedY = y;
       let animatedSize = String(fontSize);
       let animatedAlpha: string | null = null;
+      const start = animation.delay;
+      const enterEnd = start + animation.duration;
+      const exitStart = animation.exitStart;
+      const exitEnd = exitStart + animation.exitDuration;
+      const inProgress = easedProgress(start, animation.duration, animation.easing);
+      const outProgress = easedProgress(exitStart, animation.exitDuration, animation.exitEasing);
+      const exitType = animation.exitType;
+      const exitFade = ["fade-out", "zoom-out", "rotate-out"].includes(exitType);
+      const exitSlide = exitType === "slide-out";
+      const exitZoom = exitType === "zoom-out";
+      const fadeIn = `if(lt(t,${start.toFixed(3)}),0,if(lt(t,${enterEnd.toFixed(3)}),${inProgress},1))`;
+      const exitFadeExpr = `if(lt(t,${exitStart.toFixed(3)}),1,if(lt(t,${exitEnd.toFixed(3)}),1-(${outProgress}),0))`;
+      const entersWithFade = ["fade-in", "zoom-in", "scale-fade", "cinematic-title", "rotate-in", "overshoot"].includes(animation.type);
+      const entranceAlpha = entersWithFade ? fadeIn : "1";
+      const combinedFade = exitFade ? `(${entranceAlpha})*(${exitFadeExpr})` : entersWithFade ? entranceAlpha : null;
 
       if (animation.type === "fade-in") {
-        animatedAlpha = `if(lt(t,${animationDelay}),0,if(lt(t,${animationEnd.toFixed(3)}),(t-${animationDelay})/${animationDuration},1))`;
+        animatedAlpha = combinedFade;
       } else if (animation.type === "slide-in") {
-        const end = animationEnd.toFixed(3);
-        const progress = `(t-${animationDelay})/${animationDuration}`;
-        if (animation.direction === "left") {
-          animatedX = `if(lt(t,${animationDelay}),-text_w,if(lt(t,${end}),-text_w+((${x})+text_w)*${progress},${x}))`;
-        } else if (animation.direction === "right") {
-          animatedX = `if(lt(t,${animationDelay}),w,if(lt(t,${end}),w+((${x})-w)*${progress},${x}))`;
-        } else if (animation.direction === "top") {
-          animatedY = `if(lt(t,${animationDelay}),-text_h,if(lt(t,${end}),-text_h+((${y})+text_h)*${progress},${y}))`;
-        } else {
-          animatedY = `if(lt(t,${animationDelay}),h,if(lt(t,${end}),h+((${y})-h)*${progress},${y}))`;
-        }
-      } else if (animation.type === "zoom-in") {
-        // FFmpeg drawtext evaluates this fontsize expression during rendering.
-        animatedSize = `max(6,${fontSize}*min(1,max(0,(t-${animationDelay})/${animationDuration})))`;
-        animatedAlpha = `if(lt(t,${animationDelay}),0,if(lt(t,${animationEnd.toFixed(3)}),(t-${animationDelay})/${animationDuration},1))`;
+        const fromX = animation.direction === "left" ? "-text_w" : animation.direction === "right" ? "w" : x;
+        const fromY = animation.direction === "top" ? "-text_h" : animation.direction === "bottom" ? "h" : y;
+        const movesX = animation.direction === "left" || animation.direction === "right";
+        const target = movesX ? x : y;
+        const from = movesX ? fromX : fromY;
+        const entrance = `if(lt(t,${start.toFixed(3)}),${from},if(lt(t,${enterEnd.toFixed(3)}),${from}+((${target})-(${from}))*(${inProgress}),${target}))`;
+        const position = exitSlide
+          ? `if(lt(t,${start.toFixed(3)}),${from},if(lt(t,${enterEnd.toFixed(3)}),${from}+((${target})-(${from}))*(${inProgress}),if(lt(t,${exitStart.toFixed(3)}),${target},(${target})+((${from})-(${target}))*(${outProgress}))))`
+          : entrance;
+        if (movesX) animatedX = position;
+        else animatedY = position;
+        animatedAlpha = combinedFade;
+      } else if (["zoom-in", "scale-fade", "cinematic-title", "overshoot"].includes(animation.type)) {
+        const initialScale = animation.type === "scale-fade" || animation.type === "overshoot" ? 0.76 : animation.type === "cinematic-title" ? 0.94 : 0.86;
+        const scaleExpr = `${initialScale}+${(1 - initialScale).toFixed(3)}*(${inProgress})`;
+        const enteringSize = `if(lt(t,${start.toFixed(3)}),${initialScale},if(lt(t,${enterEnd.toFixed(3)}),${scaleExpr},1))`;
+        const sizeExpr = exitZoom
+          ? `if(lt(t,${start.toFixed(3)}),${initialScale},if(lt(t,${enterEnd.toFixed(3)}),${scaleExpr},if(lt(t,${exitStart.toFixed(3)}),1,1-0.14*(${outProgress}))))`
+          : enteringSize;
+        animatedSize = `max(6,${fontSize}*(${sizeExpr}))`;
+        animatedAlpha = combinedFade;
+      } else if (animation.type === "rotate-in") {
+        const rotateScale = `if(lt(t,${start.toFixed(3)}),0.96,if(lt(t,${enterEnd.toFixed(3)}),0.96+0.04*(${inProgress}),1))`;
+        animatedSize = `max(6,${fontSize}*(${rotateScale}))`;
+        animatedAlpha = combinedFade;
+      } else if (exitSlide) {
+        const from = animation.direction === "left" ? "-text_w" : animation.direction === "right" ? "w" : animation.direction === "top" ? "-text_h" : "h";
+        const target = animation.direction === "left" || animation.direction === "right" ? x : y;
+        const outPosition = `if(lt(t,${exitStart.toFixed(3)}),${target},(${target})+((${from})-(${target}))*(${outProgress}))`;
+        if (animation.direction === "left" || animation.direction === "right") animatedX = outPosition;
+        else animatedY = outPosition;
+      } else if (exitZoom) {
+        animatedSize = `max(6,${fontSize}*(1-0.14*(${outProgress})))`;
+        animatedAlpha = exitFadeExpr;
+      }
+      if (exitZoom && !["zoom-in", "scale-fade", "cinematic-title", "overshoot"].includes(animation.type)) {
+        const entranceScale = animation.type === "rotate-in"
+          ? `if(lt(t,${start.toFixed(3)}),0.96,if(lt(t,${enterEnd.toFixed(3)}),0.96+0.04*(${inProgress}),1))`
+          : "1";
+        animatedSize = `max(6,${fontSize}*(${entranceScale})*(if(lt(t,${exitStart.toFixed(3)}),1,1-0.14*(${outProgress}))))`;
+        animatedAlpha = animatedAlpha ?? exitFadeExpr;
+      }
+      if (!animatedAlpha && exitFade) animatedAlpha = exitFadeExpr;
+
+      const emphasisEnd = Math.max(visibleStart, visibleEnd);
+      if (animation.emphasisType === "float") {
+        animatedY = `(${animatedY})+12*${animation.intensity.toFixed(3)}*sin(t*2.1)*between(t,${visibleStart.toFixed(3)},${emphasisEnd.toFixed(3)})`;
+      } else if (animation.emphasisType === "pulse") {
+        animatedSize = `max(6,(${animatedSize})*(1+0.025*${animation.intensity.toFixed(3)}*sin(t*2.2)))`;
       }
 
       const params = makeParams(
         textFileRelative,
-        animatedX,
-        animatedY,
+        usesLayer ? localX : animatedX,
+        usesLayer ? localY : animatedY,
         animatedSize,
       );
       if (enable) params.push(`enable='${enable}'`);
-      if (animatedAlpha) params.push(`alpha='${animatedAlpha}'`);
-      else if (alpha && /^if\(/i.test(alpha)) params.push(`alpha='${alpha}'`);
-      filters.push(`drawtext=${params.join(":")}`);
+      const alphaExpressions = [
+        animatedAlpha ? `(${animatedAlpha})` : "",
+        alpha && /^if\(/i.test(alpha) ? `(${alpha})` : "",
+        textOpacity < 1 ? textOpacity.toFixed(3) : "",
+      ].filter(Boolean);
+      if (alphaExpressions.length) params.push(`alpha='${alphaExpressions.join("*")}'`);
+      outputFilters.push(`drawtext=${params.join(":")}`);
     }
+    finishRotatedLayer();
     textIndex++;
   }
 
-  filters.push("format=yuv420p");
-  return `[0:v]${filters.join(",")}[vout]`;
+  if (graphParts.length === 0) {
+    filters.push("format=yuv420p");
+    return `[0:v]${filters.join(",")}[vout]`;
+  }
+  graphParts.push(`${chainInput}${filters.length ? `${filters.join(",")},` : ""}format=yuv420p[vout]`);
+  return graphParts.join(";\n");
 }
-
-type TextAnimation = {
-  type?: "none" | "fade-in" | "slide-in" | "zoom-in" | "typewriter";
-  duration?: number;
-  delay?: number;
-  direction?: "left" | "right" | "top" | "bottom";
-};
 
 function finiteSeconds(
   value: unknown,
@@ -367,24 +600,12 @@ function finiteSeconds(
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 }
 
-function getTextAnimation(value: unknown): Required<TextAnimation> {
-  const anim =
-    value && typeof value === "object" ? (value as TextAnimation) : {};
-  const supported = ["none", "fade-in", "slide-in", "zoom-in", "typewriter"];
-  const type = supported.includes(String(anim.type))
-    ? (String(anim.type) as Required<TextAnimation>["type"])
-    : "none";
-  const directions = ["left", "right", "top", "bottom"];
-  const direction = directions.includes(String(anim.direction))
-    ? (String(anim.direction) as Required<TextAnimation>["direction"])
-    : "bottom";
+function getTextAnimation(value: unknown, sceneDuration: number) {
+  return resolveTextMotion(value, sceneDuration);
+}
 
-  return {
-    type,
-    duration: finiteSeconds(anim.duration, 1, 0.1, 10),
-    delay: finiteSeconds(anim.delay, 0, 0, 120),
-    direction,
-  };
+function easedProgress(start: number, duration: number, easing: string) {
+  return ffmpegProgress(start, duration, easing as Parameters<typeof ffmpegProgress>[2]);
 }
 
 export async function renderInvitation(
@@ -398,7 +619,8 @@ export async function renderInvitation(
   await fs.mkdir(generatedDir, { recursive: true });
 
   const renderedFrames: string[] = [];
-  let finalAbsolute = path.join(generatedDir, `invitation-${jobId}.mp4`);
+  const renderedDurations: number[] = [];
+  const finalAbsolute = path.join(generatedDir, `invitation-${jobId}.mp4`);
   const intermediateAbsolute = path.join(
     workDirAbsolute,
     "joined-no-audio.mp4",
@@ -407,6 +629,19 @@ export async function renderInvitation(
   try {
     if (options.frames.length === 0)
       throw new Error("This template has no frames to render.");
+
+    const firstFrame = options.frames[0];
+    if (!firstFrame.sourceVideo) {
+      throw new Error(`Frame ${firstFrame.frameNumber} has no source video path configured.`);
+    }
+    const firstVideoPath = resolvePublicFile(firstFrame.sourceVideo);
+    try {
+      await fs.access(firstVideoPath);
+    } catch {
+      throw new Error(`Source video is missing for frame ${firstFrame.frameNumber}: ${normalizePublicPath(firstFrame.sourceVideo)}.`);
+    }
+    const firstMetadata = await probeVideo(firstVideoPath);
+    const canvas = outputCanvas(firstMetadata);
 
     for (let index = 0; index < options.frames.length; index++) {
       const frame = options.frames[index];
@@ -423,6 +658,12 @@ export async function renderInvitation(
           `Source video is missing for frame ${frame.frameNumber}: ${normalizePublicPath(frame.sourceVideo)}. Copy the original MP4 into public/${normalizePublicPath(frame.sourceVideo)} and retry.`,
         );
       }
+      const isStillImage = /\.(avif|gif|jpe?g|png|webp)$/i.test(inputAbsolute);
+      const metadata = index === 0 ? firstMetadata : await probeVideo(inputAbsolute);
+      const configuredDuration = Number(frame.durationSeconds);
+      const sceneDuration = Number.isFinite(configuredDuration) && configuredDuration > 0
+        ? isStillImage ? configuredDuration : Math.min(configuredDuration, metadata.duration ?? configuredDuration)
+        : metadata.duration ?? 5;
 
       const scriptRelative = `${workDirRelative}/frame-${index}.filter`;
       const scriptAbsolute = path.join(PROJECT_ROOT, scriptRelative);
@@ -436,11 +677,14 @@ export async function renderInvitation(
         frameInput,
         workDirRelative,
         index,
+        canvas,
+        sceneDuration,
       );
       await fs.writeFile(scriptAbsolute, filterScript, "utf8");
 
       const args = [
         "-y",
+        ...(isStillImage ? ["-loop", "1", "-framerate", "30", "-t", String(sceneDuration)] : []),
         "-i",
         inputAbsolute,
         "-filter_complex_script",
@@ -468,38 +712,53 @@ export async function renderInvitation(
       );
       await runFfmpeg(args);
       renderedFrames.push(outputAbsolute);
+      renderedDurations.push(sceneDuration);
     }
 
-    const concatRelative = `${workDirRelative}/concat.txt`;
-    const concatAbsolute = path.join(PROJECT_ROOT, concatRelative);
-    const concatContent = renderedFrames
-      .map((file) => `file '${normalizeAbsoluteForConcat(file)}'`)
-      .join("\n");
-    await fs.writeFile(concatAbsolute, concatContent, "utf8");
-
-    await runFfmpeg([
-      "-y",
-      "-f",
-      "concat",
-      "-safe",
-      "0",
-      "-i",
-      concatAbsolute,
-      "-an",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "20",
-      "-pix_fmt",
-      "yuv420p",
-      "-r",
-      "30",
-      "-movflags",
-      "+faststart",
-      intermediateAbsolute,
-    ]);
+    const transitionPairs = options.frames.slice(0, -1).map((frame, index) => {
+      const config = normalizeConfigForEditor(frame.placeholderConfig);
+      const maxDuration = Math.max(0.1, Math.min(renderedDurations[index], renderedDurations[index + 1]) * 0.45);
+      return resolveSceneTransition(config.transitionToNext, maxDuration);
+    });
+    const hasTransitions = transitionPairs.some((transition) => transition.type !== "hard-cut");
+    if (renderedFrames.length === 1 || !hasTransitions) {
+      const concatRelative = `${workDirRelative}/concat.txt`;
+      const concatAbsolute = path.join(PROJECT_ROOT, concatRelative);
+      const concatContent = renderedFrames
+        .map((file) => `file '${normalizeAbsoluteForConcat(file)}'`)
+        .join("\n");
+      await fs.writeFile(concatAbsolute, concatContent, "utf8");
+      await runFfmpeg([
+        "-y", "-f", "concat", "-safe", "0", "-i", concatAbsolute, "-an",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart", intermediateAbsolute,
+      ]);
+    } else {
+      const graph: string[] = renderedFrames.map((_, index) => `[${index}:v]settb=AVTB,setpts=PTS-STARTPTS,fps=30,format=yuv420p[s${index}]`);
+      let current = "s0";
+      let timelineDuration = renderedDurations[0] || 5;
+      for (let index = 1; index < renderedFrames.length; index++) {
+        const transition = transitionPairs[index - 1];
+        const output = `joined${index}`;
+        const next = `s${index}`;
+        if (transition.type === "hard-cut") {
+          graph.push(`[${current}][${next}]concat=n=2:v=1:a=0,settb=AVTB,setpts=PTS-STARTPTS,fps=30[${output}]`);
+          timelineDuration += renderedDurations[index];
+        } else {
+          const name = ffmpegTransitionName(transition);
+          const overlap = Math.min(transition.duration, timelineDuration, renderedDurations[index]);
+          const offset = Math.max(0, timelineDuration - overlap);
+          graph.push(`[${current}][${next}]xfade=transition=${name}:duration=${overlap.toFixed(6)}:offset=${offset.toFixed(6)},settb=AVTB,setpts=PTS-STARTPTS,fps=30[${output}]`);
+          timelineDuration += renderedDurations[index] - overlap;
+        }
+        current = output;
+      }
+      graph.push(`[${current}]format=yuv420p[vout]`);
+      const scriptRelative = `${workDirRelative}/transitions.filter`;
+      const scriptAbsolute = path.join(PROJECT_ROOT, scriptRelative);
+      await fs.writeFile(scriptAbsolute, graph.join(";\n"), "utf8");
+      const args = ["-y", ...renderedFrames.flatMap((file) => ["-i", file]), "-filter_complex_script", scriptAbsolute, "-map", "[vout]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-movflags", "+faststart", intermediateAbsolute];
+      await runFfmpeg(args);
+    }
 
     if (options.musicPath) {
       const musicAbsolute = resolvePublicFile(options.musicPath);

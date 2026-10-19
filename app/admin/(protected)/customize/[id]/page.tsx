@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -21,6 +20,9 @@ import { normalizeNewlines } from "@/lib/template-config";
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
   key?: string;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
   name?: string;
   text?: string;
   maxLength?: number;
@@ -50,6 +52,7 @@ type MusicTrack = {
   title: string;
   path: string;
   duration?: number | null;
+  enabled?: boolean;
 };
 
 type FramesData = Record<string, Record<string, string>>;
@@ -85,11 +88,11 @@ export default function CustomizePage() {
       setError("");
       try {
         const [templateResponse, frameResponse] = await Promise.all([
-          fetch(`/api/templates/${id}`, {
+          fetch(`/api/templates/${id}?manage=true`, {
             signal: controller.signal,
             cache: "no-store",
           }),
-          fetch(`/api/templates/${id}/frames`, {
+          fetch("/api/music?includeDisabled=true", {
             signal: controller.signal,
             cache: "no-store",
           }),
@@ -103,16 +106,22 @@ export default function CustomizePage() {
             templateResult.message || "Template could not be loaded.",
           );
         }
-        if (!frameResponse.ok || frameResult.status !== "success") {
-          throw new Error(
-            frameResult.message || "Template frames could not be loaded.",
-          );
-        }
-        const loadedFrames: Frame[] = frameResult.frames || [];
+        const loadedFrames: Frame[] = templateResult.data.frames || [];
         if (loadedFrames.length === 0)
           throw new Error("This template has no editable frames.");
         setTemplate(templateResult.data);
         setFrames(loadedFrames);
+        if (frameResponse.ok && frameResult.status === "success") {
+          const libraryTracks: MusicTrack[] = frameResult.data || [];
+          setMusicTracks(
+            templateResult.data.musicConfigured
+              ? (templateResult.data.musicTracks || []).filter((track: MusicTrack) => track.enabled !== false)
+              : libraryTracks.filter((track) => track.enabled !== false),
+          );
+        } else {
+          setMusicError("Music choices could not be loaded.");
+        }
+        setLoadingMusic(false);
         const initial: FramesData = {};
         loadedFrames.forEach((frame) => {
           const texts = Array.isArray(frame.placeholderConfig?.texts)
@@ -139,33 +148,6 @@ export default function CustomizePage() {
     void loadEditor();
     return () => controller.abort();
   }, [id]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const loadMusic = async () => {
-      setLoadingMusic(true);
-      setMusicError("");
-      try {
-        const response = await fetch("/api/music", {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-        const result = await response.json();
-        if (!response.ok || result.status !== "success")
-          throw new Error(result.message || "Music list unavailable.");
-        setMusicTracks(result.data || []);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-        setMusicError(
-          err instanceof Error ? err.message : "Music list unavailable.",
-        );
-      } finally {
-        if (!controller.signal.aborted) setLoadingMusic(false);
-      }
-    };
-    void loadMusic();
-    return () => controller.abort();
-  }, []);
 
   const currentFrame = frames[currentFrameIndex];
   const currentFrameKey = currentFrame ? String(currentFrame.id) : "";
@@ -271,9 +253,27 @@ export default function CustomizePage() {
                 alt={currentFrame.title || "Invitation frame artwork"}
                 className="absolute inset-0 h-full w-full object-cover"
               />
+            ) : currentFrame.sourceVideo &&
+              /\.(avif|gif|jpe?g|png|webp)$/i.test(currentFrame.sourceVideo) ? (
+              <img
+                src={mediaUrl(currentFrame.sourceVideo)}
+                alt={currentFrame.title || "Invitation frame artwork"}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : currentFrame.sourceVideo ? (
+              <video
+                src={mediaUrl(currentFrame.sourceVideo)}
+                aria-label={`${currentFrame.title || "Invitation frame"} video preview`}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-white">
-                No preview image
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-100 px-6 text-center text-sm text-slate-500">
+                No preview image or source media is saved for this frame.
               </div>
             )}
           </div>
@@ -342,14 +342,14 @@ export default function CustomizePage() {
                 const value = normalizeNewlines(
                   currentValues[`text_${index}`] ?? field.text,
                 );
-                const maxLength = Number(field.maxLength) || 500;
+                const maxLength = Math.max(1, Math.min(2000, Number(field.maxLength) || 500));
                 return (
                   <div key={`${currentFrame.id}-${index}`}>
                     <label
                       htmlFor={`text-${currentFrame.id}-${index}`}
                       className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
-                      {field.key || field.name || `Text field ${index + 1}`}
+                      {field.label || field.key || field.name || `Text field ${index + 1}`}
                     </label>
                     <textarea
                       id={`text-${currentFrame.id}-${index}`}
@@ -363,8 +363,9 @@ export default function CustomizePage() {
                       }
                       rows={Math.min(7, Math.max(2, value.split("\n").length))}
                       maxLength={maxLength}
+                      required={field.required === true}
                       className="w-full resize-y rounded-lg border border-gray-200 px-3 py-3 text-sm leading-6 outline-none transition focus:border-[#a86dcd] focus:ring-2 focus:ring-purple-100"
-                      placeholder="Enter invitation text..."
+                      placeholder={field.placeholder || "Enter invitation text..."}
                     />
                     <div className="mt-1 text-right text-xs text-gray-400">
                       {value.length} / {maxLength}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { serializeFrame } from "@/lib/serializers";
-import { normalizeConfigForEditor } from "@/lib/template-config";
+import { serializeCustomerTextConfig } from "@/lib/serializers";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -21,10 +21,7 @@ export async function GET(_request: Request, context: Context) {
       return NextResponse.json({ status: "error", message: "Template not found." }, { status: 404 });
     }
 
-    let frames = template.frames.map((frame) => ({
-      ...serializeFrame(frame),
-      placeholderConfig: normalizeConfigForEditor(frame.placeholderConfig),
-    }));
+    let frames = template.frames.map((frame) => serializeFrame(frame));
 
     // Compatibility fallback for legacy templates that only have placeholderConfig on Template.
     if (frames.length === 0 && template.legacyPlaceholderConfig) {
@@ -35,7 +32,7 @@ export async function GET(_request: Request, context: Context) {
         title: "Customize invitation",
         sourceVideo: template.sourceVideo,
         previewImage: template.thumbnail,
-        placeholderConfig: normalizeConfigForEditor(template.legacyPlaceholderConfig),
+        placeholderConfig: serializeCustomerTextConfig(template.legacyPlaceholderConfig),
         durationSeconds: template.durationSeconds || null,
       }];
     }

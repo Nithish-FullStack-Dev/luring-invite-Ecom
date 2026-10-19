@@ -1,22 +1,35 @@
 // components/Providers.tsx
 "use client";
 
+import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { LoaderProvider } from "@/lib/loader-context";
 import InviteLoader from "./loader/InviteLoader";
 import { TooltipProvider } from "./ui/tooltip";
 import { Toaster } from "./ui/toaster";
 import { Toaster as Sonner } from "./ui/sonner";
-// import SiteProtection from "./SiteProtection";
 
 type ProvidersProps = {
   children: React.ReactNode;
 };
 
+function RouteAwareProviders({ children }: ProvidersProps) {
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith("/admin");
+
+  return (
+    <LoaderProvider>
+      {!isAdmin && <InviteLoader />}
+      <Toaster />
+      <Sonner />
+      {children}
+    </LoaderProvider>
+  );
+}
+
 export default function Providers({ children }: ProvidersProps) {
-  const isAdmin = usePathname().startsWith("/admin");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -32,13 +45,9 @@ export default function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <LoaderProvider>
-          {!isAdmin && <InviteLoader />}
-          <Toaster />
-          <Sonner />
-          {/* <SiteProtection /> */}
-          {children}
-        </LoaderProvider>
+        <Suspense fallback={null}>
+          <RouteAwareProviders>{children}</RouteAwareProviders>
+        </Suspense>
       </TooltipProvider>
     </QueryClientProvider>
   );

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { serializeMusic } from "@/lib/serializers";
+import { templateAdminFailure } from "@/lib/template-api-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const includeDisabled = new URL(request.url).searchParams.get("includeDisabled") === "true";
+    const authFailure = await templateAdminFailure();
+    if (authFailure) return authFailure;
     const tracks = await prisma.musicTrack.findMany({
-      where: { enabled: true },
+      where: includeDisabled ? {} : { enabled: true },
       orderBy: { title: "asc" },
     });
     return NextResponse.json({
@@ -22,6 +26,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authFailure = await templateAdminFailure(true);
+  if (authFailure) return authFailure;
   try {
     const body = await request.json();
     const title = typeof body.title === "string" ? body.title.trim() : "";

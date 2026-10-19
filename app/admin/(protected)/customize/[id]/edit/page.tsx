@@ -11,11 +11,11 @@ export default async function Page({ params }: PageProps) {
   return (
     <Card>
       <CardHeader>
-        <h1 className="text-2xl font-bold">Edit Customize</h1>
+        <h1 className="text-2xl font-bold">Invitation Design Studio</h1>
       </CardHeader>
 
       <div className="p-4">
-        <EditCustomize id={id} />
+        <EditCustomize key={id} id={id} />
       </div>
     </Card>
   );
