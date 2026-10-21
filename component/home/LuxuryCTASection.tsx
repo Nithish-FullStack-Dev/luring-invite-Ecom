@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Vortex } from "@/components/ui/vortex";
+import { Vortex } from "@/component/ui/vortex";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 

@@ -51,7 +51,7 @@ export default function Footer() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
-              variant="heroOutline"
+              variant="default"
               onClick={openWhatsApp}
               className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
             >
@@ -62,7 +62,7 @@ export default function Footer() {
             </Button>
             <Link href="/contact">
               <Button
-                variant="heroOutline"
+                variant="default"
                 // size="xl"
                 className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 w-full sm:w-auto"
               >
