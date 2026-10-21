@@ -16,8 +16,8 @@ import {
   type Product,
   type VideoPlatform,
 } from "@/data/products";
-import { Button } from "@/components/ui/button";
-import { AuroraBackground } from "@/components/ui/aurora-background";
+import { Button } from "@/component/ui/button";
+import { AuroraBackground } from "@/component/ui/aurora-background";
 
 /* -------------------------------- types -------------------------------- */
 
@@ -278,7 +278,7 @@ export default function BestSellersCarousel() {
             </div>
 
             <div className="mt-4 flex justify-center md:mt-0 md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2">
-              <Button asChild variant="ctaOutline" className="group">
+              <Button asChild variant="default" className="group">
                 <Link to="/collections">
                   View All{" "}
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -536,12 +536,12 @@ function BestSellerVideoModal({
         </div>
 
         <div className="p-4 flex gap-2">
-          <Button asChild className="flex-1" variant="hero">
+          <Button asChild className="flex-1" variant="default">
             <Link to={`/product/${selected.slug}`}>View</Link>
           </Button>
 
           <Button
-            variant="whatsapp"
+            variant="default"
             className="flex-1"
             onClick={() =>
               window.open(

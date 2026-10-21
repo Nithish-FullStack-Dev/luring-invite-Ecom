@@ -1,14 +1,14 @@
-import { motion } from 'framer-motion';
-import { faqs } from '@/data/products';
+import { motion } from "framer-motion";
+import { faqs } from "@/data/products";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+} from "@/component/ui/accordion";
+import { Link } from "react-router-dom";
+import { Button } from "@/component/ui/button";
+import { ArrowRight } from "lucide-react";
 
 export default function FAQPreview() {
   return (
@@ -27,10 +27,11 @@ export default function FAQPreview() {
               Frequently Asked Questions
             </h2>
             <p className="text-muted-foreground mb-8">
-              Everything you need to know about our services. Can't find what you're looking for? Reach out to us!
+              Everything you need to know about our services. Can't find what
+              you're looking for? Reach out to us!
             </p>
             <Link to="/faq">
-              <Button variant="ctaOutline" className="group">
+              <Button variant="default" className="group">
                 View All FAQs
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Button>

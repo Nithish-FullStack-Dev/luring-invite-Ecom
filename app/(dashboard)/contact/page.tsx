@@ -13,14 +13,23 @@ import { Input } from "@/component/ui/input";
 import { Textarea } from "@/component/ui/textarea";
 import { Button } from "@/component/ui/button";
 
-
 const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzAzqzG5hYLKg7oYEmWQsrIos4bLL2xUwZMPzUd5t8CURtd37mHSMld6V17XqhJmXs9/exec";
 export default function Contact() {
   const contact = usePublicContent().contact ?? defaults.contact;
   const contactInfo = [
-    { icon: Phone, title: "Phone", value: contact.phone, link: "tel:" + contact.phone.replace(/[^+0-9]/g, "") },
-    { icon: Mail, title: "Email", value: contact.email, link: "mailto:" + contact.email },
+    {
+      icon: Phone,
+      title: "Phone",
+      value: contact.phone,
+      link: "tel:" + contact.phone.replace(/[^+0-9]/g, ""),
+    },
+    {
+      icon: Mail,
+      title: "Email",
+      value: contact.email,
+      link: "mailto:" + contact.email,
+    },
     { icon: MapPin, title: "Location", value: contact.location, link: null },
     { icon: Clock, title: "Working Hours", value: contact.hours, link: null },
   ];
@@ -227,7 +236,7 @@ export default function Contact() {
 
                 <Button
                   type="submit"
-                  variant="cta"
+                  variant="default"
                   size="lg"
                   className="w-full"
                   disabled={isSubmitting}

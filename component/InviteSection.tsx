@@ -22,9 +22,9 @@ const InviteSection: React.FC = () => {
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
   // SVG Refs
-  const flapRef = useRef<SVGPolygonElement>(null);
-  const seamRef = useRef<SVGPolylineElement>(null);
-  const flapShadowRef = useRef<SVGPathElement>(null);
+  const flapRef = useRef<SVGPolygonElement>(null!);
+  const seamRef = useRef<SVGPolylineElement>(null!);
+  const flapShadowRef = useRef<SVGPathElement>(null!);
 
   // Layer Refs
   const cardRef = useRef<HTMLDivElement>(null);
@@ -191,8 +191,7 @@ const InviteSection: React.FC = () => {
     justify-center
   "
       style={{
-        backgroundImage: "url('/images/bg3.png')"
-        ,
+        backgroundImage: "url('/images/bg3.png')",
       }}
     >
       <div className="relative w-full h-full flex items-center justify-center">

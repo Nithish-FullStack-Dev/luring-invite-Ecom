@@ -124,7 +124,7 @@ export default function TrendingVideo() {
             </div>
 
             <div className="mt-4 flex justify-center md:mt-0 md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2">
-              <Button asChild variant="ctaOutline" className="group">
+              <Button asChild variant="default" className="group">
                 <Link href="/collections">
                   View All
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -252,7 +252,7 @@ export default function TrendingVideo() {
                           <div className="mt-4 flex gap-2">
                             <Button
                               asChild
-                              variant="hero"
+                              variant="default"
                               size="default"
                               className="w-full flex-1"
                             >
@@ -263,7 +263,7 @@ export default function TrendingVideo() {
 
                             <Button
                               type="button"
-                              variant="whatsapp"
+                              variant="default"
                               size="default"
                               className="flex-1"
                               onClick={() =>
@@ -370,13 +370,13 @@ function TrendingModal({
 
         <div className="relative z-10 shrink-0 px-4 py-3 border-t border-border bg-background">
           <div className="flex gap-2">
-            <Button asChild variant="hero" className="w-full flex-1">
+            <Button asChild variant="default" className="w-full flex-1">
               <Link href={`/product/${selected.product.slug}`}>View</Link>
             </Button>
 
             <Button
               type="button"
-              variant="whatsapp"
+              variant="default"
               className="flex-1"
               onClick={() => onWhatsApp(selected.product)}
             >

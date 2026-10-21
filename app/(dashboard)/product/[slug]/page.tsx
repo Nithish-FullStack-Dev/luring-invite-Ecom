@@ -20,7 +20,9 @@ const WEB_APP_URL =
   "https://script.google.com/macros/s/AKfycbzAzqzG5hYLKg7oYEmWQsrIos4bLL2xUwZMPzUd5t8CURtd37mHSMld6V17XqhJmXs9/exec";
 export default function ProductDetail() {
   const { slug } = useParams();
-  const product = getProductBySlug(slug || "");
+  const product = getProductBySlug(
+    Array.isArray(slug) ? slug[0] ?? "" : slug ?? "",
+  );
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
@@ -33,6 +35,9 @@ export default function ProductDetail() {
     language: "English",
     notes: "",
   });
+
+  if (!product) return <div>Product not found</div>;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -85,8 +90,6 @@ export default function ProductDetail() {
       setIsSubmitting(false);
     }
   };
-  if (!product) return <div>Product not found</div>;
-
   const hasVideo = !!product.video?.url;
   const hasPdf = !!product.pdf;
 
@@ -248,7 +251,7 @@ export default function ProductDetail() {
                   <div className="flex flex-col sm:flex-row gap-4">
                     <Button
                       type="button"
-                      variant="whatsapp"
+                      variant="default"
                       className="flex-1"
                       onClick={handleWhatsAppEnquiry}
                     >
@@ -257,7 +260,7 @@ export default function ProductDetail() {
 
                     <Button
                       type="submit"
-                      variant="cta"
+                      variant="default"
                       className="flex-1"
                       disabled={isSubmitting}
                     >

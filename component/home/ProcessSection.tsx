@@ -1,8 +1,20 @@
-import { motion } from 'framer-motion';
-import { useState } from 'react';
-import { processSteps } from '@/data/products';
-import { Palette, PenTool, Layers, Play, RefreshCw, CheckCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { motion } from "framer-motion";
+import { useState } from "react";
+import { processSteps } from "@/data/products";
+import {
+  Palette,
+  PenTool,
+  Layers,
+  Play,
+  RefreshCw,
+  CheckCircle,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/component/ui/dialog";
 
 const iconMap: Record<string, React.ElementType> = {
   Palette,
@@ -14,7 +26,9 @@ const iconMap: Record<string, React.ElementType> = {
 };
 
 export default function ProcessSection() {
-  const [selectedStep, setSelectedStep] = useState<typeof processSteps[0] | null>(null);
+  const [selectedStep, setSelectedStep] = useState<
+    (typeof processSteps)[0] | null
+  >(null);
 
   return (
     <section className="section-padding bg-background overflow-hidden">
@@ -30,7 +44,8 @@ export default function ProcessSection() {
             Our Creative Process
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-sm md:text-base">
-            From concept to delivery, we follow a meticulous process to ensure your invitation is perfect.
+            From concept to delivery, we follow a meticulous process to ensure
+            your invitation is perfect.
           </p>
         </motion.div>
 
@@ -38,7 +53,7 @@ export default function ProcessSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {processSteps.map((step, index) => {
             const IconComponent = iconMap[step.icon];
-            
+
             return (
               <motion.div
                 key={step.id}
@@ -61,7 +76,9 @@ export default function ProcessSection() {
                     <div className="relative w-16 h-16 md:w-20 md:h-20 mb-6">
                       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 group-hover:from-primary/30 group-hover:to-primary/10 transition-colors" />
                       <div className="absolute inset-0 flex items-center justify-center">
-                        {IconComponent && <IconComponent className="w-8 h-8 md:w-10 md:h-10 text-primary" />}
+                        {IconComponent && (
+                          <IconComponent className="w-8 h-8 md:w-10 md:h-10 text-primary" />
+                        )}
                       </div>
                       {/* Animated ring on hover */}
                       <div className="absolute inset-0 rounded-2xl border-2 border-primary/0 group-hover:border-primary/50 transition-colors" />
@@ -93,7 +110,10 @@ export default function ProcessSection() {
         </div>
 
         {/* Modal */}
-        <Dialog open={!!selectedStep} onOpenChange={() => setSelectedStep(null)}>
+        <Dialog
+          open={!!selectedStep}
+          onOpenChange={() => setSelectedStep(null)}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="font-heading text-2xl flex items-center gap-3">

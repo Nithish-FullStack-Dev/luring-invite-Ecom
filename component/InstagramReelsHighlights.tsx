@@ -206,8 +206,8 @@ export default function InstagramReelsHighlights() {
             >
               {reels.map((item, i) => (
                 <div
-  key={i}
-  className="
+                  key={i}
+                  className="
     relative
     shrink-0
     overflow-hidden
@@ -219,20 +219,20 @@ export default function InstagramReelsHighlights() {
     aspect-[9/16]
     md:w-[300px]
   "
->
+                >
                   <div className="absolute inset-0 w-full h-full">
-    <iframe
-      src={item.embed}
-      className="absolute top-0 left-0 w-full h-[120%]"
-      loading="lazy"
-      scrolling="no"
-      allow="encrypted-media; fullscreen"
-      style={{ border: 0 }}
-      title={`Instagram Reel ${i}`}
-    />
-  </div>
-  <div className="absolute bottom-0 left-0 right-0 h-16 bg-white pointer-events-none" />
-  {/* <style jsx>{`
+                    <iframe
+                      src={item.embed ?? undefined}
+                      className="absolute top-0 left-0 w-full h-[120%]"
+                      loading="lazy"
+                      scrolling="no"
+                      allow="encrypted-media; fullscreen"
+                      style={{ border: 0 }}
+                      title={`Instagram Reel ${i}`}
+                    />
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-16 bg-white pointer-events-none" />
+                  {/* <style jsx>{`
     iframe {
       & ~ div[style*="position: absolute; bottom: 0"] 
         display: none !important;
