@@ -9,10 +9,13 @@ export type AnimationPreset =
   | "fade-in"
   | "fade-in-out"
   | "slide-in"
+  | "slide-fade"
+  | "rise-in"
   | "slide-in-out"
   | "zoom-in"
   | "zoom-in-out"
   | "scale-fade"
+  | "soft-pop"
   | "cinematic-title"
   | "rotate-in"
   | "overshoot"
@@ -23,6 +26,7 @@ export type AnimationPreset =
   | "typewriter"
   | "character-reveal"
   | "word-reveal"
+  | "character-pop"
   | "float"
   | "pulse";
 
@@ -236,10 +240,13 @@ export function textDraftFromConfig(
     "fade-in",
     "fade-in-out",
     "slide-in",
+    "slide-fade",
+    "rise-in",
     "slide-in-out",
     "zoom-in",
     "zoom-in-out",
     "scale-fade",
+    "soft-pop",
     "cinematic-title",
     "rotate-in",
     "overshoot",
@@ -250,6 +257,7 @@ export function textDraftFromConfig(
     "typewriter",
     "character-reveal",
     "word-reveal",
+    "character-pop",
     "float",
     "pulse",
   ];
