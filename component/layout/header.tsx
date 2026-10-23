@@ -133,84 +133,110 @@ const Header: React.FC = () => {
       {/* ✅ STICKY WRAPPER */}
       <div className="sticky top-0 z-50 w-full">
         {/* ================= TOP BAR ================= */}
-        <div className="bg-[#a86dcd] text-white text-xs sm:text-sm">
-          <div className="max-w-7xl mx-auto px-3 py-2 grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto] items-center gap-3">
-            {/* Left: Phone + Email (ICONS ONLY ON MOBILE) */}
-            <div className="flex items-center gap-3">
+        <div className="bg-[#a86dcd] text-white">
+          <div className="relative mx-auto flex h-9 w-full max-w-7xl items-center justify-between gap-2 px-3 sm:h-10 sm:px-4">
+            {/* Left: Contact */}
+            <div className="relative z-10 flex shrink-0 items-center gap-2 sm:gap-3">
               <a
                 href={"tel:" + contact.phone.replace(/[^+0-9]/g, "")}
-                className="inline-flex items-center gap-2 font-semibold"
+                className="inline-flex items-center gap-1.5 font-semibold"
                 aria-label="Call"
               >
-                <Phone className="w-5 h-5" />
-                <span className="hidden sm:inline underline whitespace-nowrap">
+                <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden whitespace-nowrap text-xs underline sm:inline">
                   {contact.phone}
                 </span>
               </a>
 
               <a
                 href={"mailto:" + contact.email}
-                className="inline-flex items-center gap-2 font-semibold"
+                className="inline-flex items-center gap-1.5 font-semibold"
                 aria-label="Email"
               >
-                <Mail className="w-5 h-5" />
-                <span className="hidden sm:inline underline whitespace-nowrap">
+                <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden whitespace-nowrap text-xs underline sm:inline">
                   {contact.email}
                 </span>
               </a>
             </div>
 
-            {/* Center: Slider */}
-            <div className="relative h-5 overflow-hidden justify-self-center text-center w-[300px] sm:w-[360px] md:w-[520px]">
+            {/* Center: Announcement slider */}
+            <div className="relative h-5 min-w-0 flex-1 overflow-hidden text-center sm:max-w-[520px]">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeIndex}
                   initial={{ x: "100%", opacity: 0 }}
-                  animate={{
-                    x: "0%",
-                    opacity: 1,
-                    transition: {
-                      x: { duration: 0.6, ease: "easeInOut" },
-                      opacity: { duration: 0.3 },
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: "-100%", opacity: 0 }}
+                  transition={{
+                    x: {
+                      duration: 0.6,
+                      ease: [0.22, 1, 0.36, 1],
                     },
+                    opacity: { duration: 0.3 },
                   }}
-                  exit={{
-                    x: "-100%",
-                    opacity: 0,
-                    transition: {
-                      x: { duration: 0.6, ease: "easeIn" },
-                      opacity: { duration: 0.3 },
-                    },
-                  }}
-                  className="absolute inset-0 flex items-center justify-center font-medium whitespace-nowrap"
+                  className="absolute inset-0 flex items-center justify-center text-center text-[10px] font-medium leading-tight sm:text-xs"
                 >
-                  {topMessages[activeIndex]}
+                  <span className="block w-full truncate">
+                    {topMessages[activeIndex]}
+                  </span>
                 </motion.div>
               </AnimatePresence>
             </div>
 
             {/* Right: Social icons (Desktop Only) */}
-            <div className="hidden md:flex items-center gap-4 justify-self-end">
+            <div className="relative z-10 hidden shrink-0 items-center gap-4 md:flex">
               <a
                 href={"https://wa.me/" + contact.whatsapp}
                 target="_blank"
                 rel="noreferrer"
+                aria-label="WhatsApp"
               >
                 <i className="fab fa-whatsapp text-lg" />
               </a>
-              <a href={SOCIAL_LINKS.facebook} target="_blank" rel="noreferrer">
+
+              <a
+                href={SOCIAL_LINKS.facebook}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Facebook"
+              >
                 <i className="fab fa-facebook-f text-lg" />
               </a>
-              <a href={SOCIAL_LINKS.instagram} target="_blank" rel="noreferrer">
+
+              <a
+                href={SOCIAL_LINKS.instagram}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Instagram"
+              >
                 <i className="fab fa-instagram text-lg" />
               </a>
-              <a href={SOCIAL_LINKS.pinterest} target="_blank" rel="noreferrer">
+
+              <a
+                href={SOCIAL_LINKS.pinterest}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Pinterest"
+              >
                 <i className="fab fa-pinterest-p text-lg" />
               </a>
-              <a href={SOCIAL_LINKS.youtube} target="_blank" rel="noreferrer">
+
+              <a
+                href={SOCIAL_LINKS.youtube}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="YouTube"
+              >
                 <i className="fab fa-youtube text-lg" />
               </a>
-              <a href={SOCIAL_LINKS.linkedin} target="_blank" rel="noreferrer">
+
+              <a
+                href={SOCIAL_LINKS.linkedin}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="LinkedIn"
+              >
                 <i className="fab fa-linkedin-in text-lg" />
               </a>
             </div>
@@ -273,100 +299,107 @@ const Header: React.FC = () => {
         </header>
       </div>
 
-      {/* ================= MOBILE MENU ================= */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-white overflow-y-auto">
-          <div ref={mobileMenuRef} className="p-4">
-            <div className="flex justify-between items-center mb-8">
-              <span className="text-xl font-bold">Menu</span>
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close menu"
-              >
-                <X className="w-7 h-7" />
-              </button>
-            </div>
+      {/* ================= ANIMATED MOBILE MENU ================= */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            key="mobile-menu-overlay"
+            className="fixed inset-0 z-[60] overflow-y-auto bg-white"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <motion.div
+              ref={mobileMenuRef}
+              className="min-h-full p-5 sm:p-8"
+              initial={{ y: -24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -16, opacity: 0 }}
+              transition={{
+                duration: 0.35,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+            >
+              {/* Menu header */}
+              <div className="mb-3 flex items-center justify-between border-b border-purple-100 pb-3">
+                <div className="flex items-center">
+                  <Link
+                    href="/"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    aria-label="Luring Invite home"
+                    className="inline-flex items-center"
+                  >
+                    <img
+                      src="https://res.cloudinary.com/drdotym31/image/upload/v1750078130/main-logo-1-1024x795_lfasd5.webp"
+                      alt="Luring Invite"
+                      className="h-14 w-auto object-contain sm:h-16"
+                    />
+                  </Link>
+                </div>
 
-            <nav className="space-y-5">
-              {navItems.map(({ label, url }) => (
-                <Link
-                  key={url + label}
-                  href={url}
+                <motion.button
+                  type="button"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="block text-lg font-medium"
+                  aria-label="Close menu"
+                  whileTap={{ scale: 0.9 }}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-gray-700 transition-colors hover:border-purple-200 hover:bg-purple-50 hover:text-[#a86dcd]"
                 >
-                  {label}
-                </Link>
-              ))}
-
-              {/* ✅ Quote Button Mobile */}
-              <button
-                onClick={openQuote}
-                className="w-full bg-[#A86DCD] text-white py-3 rounded-xl font-semibold mt-4"
-              >
-                Get a Quote
-              </button>
-            </nav>
-
-            {/* ✅ Mobile Footer Links */}
-            <div className="mt-10 border-t pt-6">
-              <div className="flex items-center justify-center gap-5 text-gray-700">
-                <a
-                  href={"https://wa.me/" + contact.whatsapp}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="WhatsApp"
-                >
-                  <i className="fab fa-whatsapp text-2xl text-green-500" />
-                </a>
-                <a href={"mailto:" + contact.email} aria-label="Email">
-                  <Mail className="w-6 h-6" />
-                </a>
-                <a
-                  href={SOCIAL_LINKS.instagram}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Instagram"
-                >
-                  <i className="fab fa-instagram text-2xl" />
-                </a>
-                <a
-                  href={SOCIAL_LINKS.facebook}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Facebook"
-                >
-                  <i className="fab fa-facebook-f text-2xl" />
-                </a>
-                <a
-                  href={SOCIAL_LINKS.pinterest}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Pinterest"
-                >
-                  <i className="fab fa-pinterest-p text-2xl" />
-                </a>
-                <a
-                  href={SOCIAL_LINKS.youtube}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="YouTube"
-                >
-                  <i className="fab fa-youtube text-2xl" />
-                </a>
-                <a
-                  href={SOCIAL_LINKS.linkedin}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="LinkedIn"
-                >
-                  <i className="fab fa-linkedin-in text-2xl" />
-                </a>
+                  <X className="h-6 w-6 transition-transform duration-300 hover:rotate-180 active:rotate-90" />
+                </motion.button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+
+              {/* Navigation links */}
+              <nav className="space-y-2">
+                {navItems.map(({ label, url }, index) => (
+                  <motion.div
+                    key={url + label}
+                    initial={{ opacity: 0, x: -18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: index * 0.045,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                  >
+                    <Link
+                      href={url}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="group flex items-center justify-between rounded-xl px-4 py-2 text-lg font-medium text-gray-800 transition-colors duration-200 hover:bg-purple-50 hover:text-[#a86dcd] active:bg-purple-100"
+                    >
+                      <span>{label}</span>
+                      <span className="translate-x-0 text-xl text-gray-300 transition-all duration-200 group-hover:translate-x-1 group-hover:text-[#a86dcd]">
+                        →
+                      </span>
+                    </Link>
+                  </motion.div>
+                ))}
+              </nav>
+
+              {/* Quote CTA */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.35,
+                  delay: navItems.length * 0.045,
+                }}
+                className="mt-6"
+              >
+                <button
+                  type="button"
+                  onClick={openQuote}
+                  className="w-full rounded-xl bg-[#a86dcd] px-5 py-4 font-semibold text-white shadow-[0_8px_24px_rgba(168,109,205,0.24)] transition-all duration-200 hover:bg-[#914bb8] hover:shadow-[0_12px_28px_rgba(168,109,205,0.3)] active:scale-[0.98]"
+                >
+                  Get a Quote
+                </button>
+              </motion.div>
+
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ================= GET A QUOTE MODAL ================= */}
       <AnimatePresence>
