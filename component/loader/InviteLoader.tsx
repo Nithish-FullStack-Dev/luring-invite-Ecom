@@ -153,7 +153,7 @@ export default function InviteLoader() {
                     loading="eager"
                     decoding="async"
                     // @ts-ignore
-                    fetchpriority="high"
+                    fetchPriority="high"
                     initial={{ scale: 0.96 }}
                     animate={{ scale: 1 }}
                     transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}

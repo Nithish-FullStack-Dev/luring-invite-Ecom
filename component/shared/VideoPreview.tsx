@@ -7,17 +7,15 @@ type PreviewMode = "card" | "modal";
 type Props = {
   url: string;
   platform?: VideoPlatform;
-  /** optional override thumbnail (only used when available) */
+  /** Optional thumbnail override */
   thumbnail?: string;
-  /** for accessibility */
+  /** Accessibility label */
   title?: string;
   /** card = list preview | modal = playable */
   mode?: PreviewMode;
-
-  /** controls iframe clickability (modal needs true, card should be false) */
+  /** Modal needs true; card should generally be false */
   interactive?: boolean;
-
-  /** pass your classes */
+  /** Custom classes */
   className?: string;
   mediaClassName?: string;
 };
@@ -26,6 +24,7 @@ type Props = {
 
 function isLocalVideoUrl(url: string): boolean {
   const lower = url.toLowerCase().split("?")[0].split("#")[0];
+
   return (
     lower.endsWith(".mp4") ||
     lower.endsWith(".webm") ||
@@ -35,132 +34,170 @@ function isLocalVideoUrl(url: string): boolean {
   );
 }
 
+/**
+ * Resolve URLs without relying on window.
+ * The same result is produced during SSR and client rendering.
+ */
+function parseUrl(url: string): URL | null {
+  try {
+    return new URL(url, "https://video-preview.invalid");
+  } catch {
+    return null;
+  }
+}
+
 function inferPlatform(url: string, declared?: VideoPlatform): VideoPlatform {
   if (!url) return declared ?? "local";
+
   if (isLocalVideoUrl(url)) return "local";
 
-  // fallback simple checks (works even if URL parse fails)
+  const parsed = parseUrl(url);
+  const host = parsed?.hostname.toLowerCase() ?? "";
   const lower = url.toLowerCase();
-  if (lower.includes("youtube.com") || lower.includes("youtu.be")) return "youtube";
-  if (lower.includes("instagram.com")) return "instagram";
-  if (lower.includes("pinterest.") || lower.includes("pin.it")) return "pinterest";
 
-  try {
-    if (typeof window === "undefined") return declared ?? "local";
-    const u = new URL(url, window.location.origin);
-    const host = u.hostname.toLowerCase();
+  if (
+    host === "youtube.com" ||
+    host.endsWith(".youtube.com") ||
+    host === "youtu.be" ||
+    host.endsWith(".youtu.be") ||
+    lower.includes("youtube.com") ||
+    lower.includes("youtu.be")
+  ) {
+    return "youtube";
+  }
 
-    if (host.includes("youtube.com") || host.includes("youtu.be")) return "youtube";
-    if (host.includes("instagram.com")) return "instagram";
-    if (host.includes("pinterest.") || host.includes("pin.it")) return "pinterest";
-  } catch {
-    // ignore
+  if (
+    host === "instagram.com" ||
+    host.endsWith(".instagram.com") ||
+    lower.includes("instagram.com")
+  ) {
+    return "instagram";
+  }
+
+  if (
+    host === "pinterest.com" ||
+    host.endsWith(".pinterest.com") ||
+    host === "pin.it" ||
+    host.endsWith(".pin.it") ||
+    lower.includes("pinterest.") ||
+    lower.includes("pin.it")
+  ) {
+    return "pinterest";
   }
 
   return declared ?? "local";
 }
 
+/** Extract a YouTube video ID on both server and client. */
 function getYouTubeId(url: string): string | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const u = new URL(url, window.location.origin);
+  const parsed = parseUrl(url);
+  if (!parsed) return null;
 
-    if (u.hostname.includes("youtu.be")) {
-      const id = u.pathname.split("/").filter(Boolean)[0];
-      return id || null;
-    }
+  const host = parsed.hostname.toLowerCase();
+  const parts = parsed.pathname.split("/").filter(Boolean);
 
-    const v = u.searchParams.get("v");
-    if (v) return v;
+  if (host === "youtu.be" || host.endsWith(".youtu.be")) {
+    return parts[0] || null;
+  }
 
-    const parts = u.pathname.split("/").filter(Boolean);
+  if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+    const videoId = parsed.searchParams.get("v");
+    if (videoId) return videoId;
 
     const shortsIndex = parts.indexOf("shorts");
-    if (shortsIndex >= 0 && parts[shortsIndex + 1]) return parts[shortsIndex + 1];
+    if (shortsIndex >= 0 && parts[shortsIndex + 1]) {
+      return parts[shortsIndex + 1];
+    }
 
     const embedIndex = parts.indexOf("embed");
-    if (embedIndex >= 0 && parts[embedIndex + 1]) return parts[embedIndex + 1];
+    if (embedIndex >= 0 && parts[embedIndex + 1]) {
+      return parts[embedIndex + 1];
+    }
 
-    return null;
-  } catch {
-    return null;
+    const liveIndex = parts.indexOf("live");
+    if (liveIndex >= 0 && parts[liveIndex + 1]) {
+      return parts[liveIndex + 1];
+    }
   }
+
+  return null;
 }
 
 function getYouTubeThumb(url: string): string | null {
   const id = getYouTubeId(url);
   if (!id) return null;
+
   return `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
 }
 
-function normalizeInstagramUrl(url: string) {
-  try {
-    if (typeof window === "undefined") return url;
-    const u = new URL(url, window.location.origin);
-    u.protocol = "https:";
-    if (!u.pathname.endsWith("/")) u.pathname += "/";
-    u.search = "";
-    u.hash = "";
-    return u.toString();
-  } catch {
-    return url;
+function normalizeInstagramUrl(url: string): string {
+  const parsed = parseUrl(url);
+  if (!parsed) return url;
+
+  parsed.protocol = "https:";
+
+  if (!parsed.pathname.endsWith("/")) {
+    parsed.pathname += "/";
   }
+
+  parsed.search = "";
+  parsed.hash = "";
+
+  return parsed.toString();
 }
 
 /**
- * Supports IG:
+ * Supports Instagram:
  * - /p/{code}/
  * - /reel/{code}/
  * - /tv/{code}/
  */
 function getInstagramEmbedUrl(url: string): string | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const u = new URL(url, window.location.origin);
-    const parts = u.pathname.split("/").filter(Boolean);
+  const parsed = parseUrl(url);
+  if (!parsed) return null;
 
-    const type = parts[0]; // p | reel | tv
-    const code = parts[1];
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  const type = parts[0];
+  const code = parts[1];
 
-    if (!code) return null;
+  if (!code) return null;
 
-    const valid = ["p", "reel", "tv"];
-    const finalType = valid.includes(type) ? type : "p";
+  const validTypes = ["p", "reel", "tv"];
+  const finalType = validTypes.includes(type) ? type : "p";
 
-    return `https://www.instagram.com/${finalType}/${code}/embed/`;
-  } catch {
-    return null;
-  }
+  return `https://www.instagram.com/${finalType}/${encodeURIComponent(code)}/embed/`;
 }
 
 function getPinterestEmbedUrl(url: string): string | null {
-  try {
-    if (typeof window === "undefined") return null;
-    const u = new URL(url, window.location.origin);
-    const parts = u.pathname.split("/").filter(Boolean);
+  const parsed = parseUrl(url);
+  if (!parsed) return null;
 
-    const pinIndex = parts.indexOf("pin");
-    const id = pinIndex >= 0 ? parts[pinIndex + 1] : null;
-    if (!id) return null;
+  const parts = parsed.pathname.split("/").filter(Boolean);
+  const pinIndex = parts.indexOf("pin");
+  const id = pinIndex >= 0 ? parts[pinIndex + 1] : null;
 
-    return `https://assets.pinterest.com/ext/embed.html?id=${id}`;
-  } catch {
-    return null;
-  }
+  if (!id) return null;
+
+  return `https://assets.pinterest.com/ext/embed.html?id=${encodeURIComponent(id)}`;
 }
 
-function getEmbedSrc(platform: VideoPlatform, url: string, autoplay: boolean): string | null {
+function getEmbedSrc(
+  platform: VideoPlatform,
+  url: string,
+  autoplay: boolean,
+): string | null {
   if (platform === "youtube") {
     const id = getYouTubeId(url);
     if (!id) return null;
-    return `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&playsinline=1&autoplay=${
-      autoplay ? 1 : 0
-    }`;
+
+    return (
+      `https://www.youtube.com/embed/${id}` +
+      `?rel=0&modestbranding=1&playsinline=1&autoplay=${autoplay ? 1 : 0}`
+    );
   }
 
   if (platform === "instagram") {
-    const normalized = normalizeInstagramUrl(url);
-    return getInstagramEmbedUrl(normalized);
+    return getInstagramEmbedUrl(normalizeInstagramUrl(url));
   }
 
   if (platform === "pinterest") {
@@ -182,19 +219,19 @@ export default function VideoPreview({
   className = "",
   mediaClassName = "",
 }: Props) {
+  // All URL parsing is deterministic and safe during SSR.
   const resolvedPlatform = inferPlatform(url, platform);
 
   const isModal = mode === "modal";
   const isInteractive = interactive ?? isModal;
 
-  // ✅ Thumbnail priority:
-  // 1) user override thumbnail (optional)
-  // 2) YouTube automatic thumbnail
+  // Priority:
+  // 1. Explicit thumbnail
+  // 2. Automatically generated YouTube thumbnail
   const autoThumb =
-    thumbnail ||
-    (resolvedPlatform === "youtube" ? getYouTubeThumb(url) : null);
+    thumbnail || (resolvedPlatform === "youtube" ? getYouTubeThumb(url) : null);
 
-  // ✅ In card mode: show YouTube thumb (not iframe)
+  // YouTube card: thumbnail only, no iframe.
   if (resolvedPlatform === "youtube" && !isModal && autoThumb) {
     return (
       <img
@@ -207,7 +244,7 @@ export default function VideoPreview({
     );
   }
 
-  // ✅ Local video (card = autoplay loop | modal = controls)
+  // Local video: autoplay/loop in cards; controls in modals.
   if (resolvedPlatform === "local") {
     return (
       <video
@@ -223,7 +260,7 @@ export default function VideoPreview({
     );
   }
 
-  // ✅ Instagram / Pinterest / YouTube (modal) => iframe embed
+  // External platforms and YouTube modal: embedded player.
   const embedSrc = getEmbedSrc(resolvedPlatform, url, isModal);
 
   if (embedSrc) {
@@ -237,13 +274,13 @@ export default function VideoPreview({
           border: 0,
           pointerEvents: isInteractive ? "auto" : "none",
         }}
-        allow="clipboard-write; encrypted-media; picture-in-picture; web-share"
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
         allowFullScreen
       />
     );
   }
 
-  // ✅ fallback: if someone gave custom thumbnail but embed fails
+  // Custom thumbnail fallback.
   if (autoThumb) {
     return (
       <img
@@ -256,7 +293,7 @@ export default function VideoPreview({
     );
   }
 
-  // ✅ last fallback
+  // Last fallback.
   return (
     <div
       className={`${className} flex items-center justify-center bg-muted text-muted-foreground text-sm`}
