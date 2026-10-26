@@ -1,35 +1,68 @@
 import { normalizeNewlines } from "@/lib/template-config";
+import { graphemeUnits } from "@/lib/text-reveal";
 
 /**
  * Shared deterministic wrapping for the CRM preview and FFmpeg. The frame
  * composition uses output pixels, so box width and font size stay in the same
- * coordinate space at both ends of the pipeline.
+ * coordinate space at both ends. Unbroken text wraps on grapheme boundaries
+ * using script-aware width estimates; authored line breaks remain untouched.
  */
 export function wrapInvitationText(raw: string, fontSize: number, boxWidth = 930) {
   const normalized = normalizeNewlines(raw);
   // A line break authored in the visual editor is part of its composition.
-  // Keep it verbatim instead of reflowing the line with a font-agnostic
-  // character estimate that can differ from FreeType's actual glyph widths.
+  // Keep it verbatim instead of reflowing a deliberately authored layout.
   if (normalized.includes("\n")) return normalized;
-  const maxChars = Math.max(10, Math.min(180, Math.floor(boxWidth / (fontSize * 0.56))));
+  const widthInEm = Math.max(1, boxWidth / Math.max(1, fontSize));
+  const measure = (value: string) => graphemeUnits(value).reduce((total, cluster) => {
+    if (/^\s+$/u.test(cluster)) return total + (/\t/u.test(cluster) ? 1.32 : 0.33);
+    if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Extended_Pictographic}]/u.test(cluster)) return total + 1;
+    if (/^[\p{Mark}\u200c\u200d\ufe00-\ufe0f]+$/u.test(cluster)) return total;
+    if (/[\p{Script=Devanagari}\p{Script=Bengali}\p{Script=Gurmukhi}\p{Script=Gujarati}\p{Script=Oriya}\p{Script=Tamil}\p{Script=Telugu}\p{Script=Kannada}\p{Script=Malayalam}\p{Script=Sinhala}\p{Script=Khmer}\p{Script=Myanmar}]/u.test(cluster)) return total + 0.92;
+    if (/[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Lao}]/u.test(cluster)) return total + 0.72;
+    if (/[ilI.,'`!:;|]/u.test(cluster)) return total + 0.3;
+    if (/[MW@%&]/u.test(cluster)) return total + 0.86;
+    return total + 0.57;
+  }, 0);
   const output: string[] = [];
-  for (const sourceLine of normalized.split("\n")) {
-    const words = sourceLine.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      output.push("");
+  let line = "";
+  let pendingWhitespace = "";
+  const appendWord = (word: string) => {
+    let part = "";
+    let partWidth = 0;
+    for (const cluster of graphemeUnits(word)) {
+      const clusterWidth = measure(cluster);
+      if (part && partWidth + clusterWidth > widthInEm) {
+        const nextLine = `${line}${pendingWhitespace}${part}`;
+        if (line && measure(nextLine) > widthInEm) output.push(line);
+        else if (line) output.push(line);
+        else output.push(`${pendingWhitespace}${part}`);
+        line = "";
+        pendingWhitespace = "";
+        part = "";
+        partWidth = 0;
+      }
+      part += cluster;
+      partWidth += clusterWidth;
+    }
+    if (!part) return;
+    const nextLine = `${line}${pendingWhitespace}${part}`;
+    if (line && measure(nextLine) > widthInEm) {
+      output.push(line);
+      line = part;
+    } else {
+      line = nextLine;
+    }
+    pendingWhitespace = "";
+  };
+
+  for (const token of normalized.match(/\s+|[^\s]+/gu) ?? []) {
+    if (/^\s+$/u.test(token)) {
+      pendingWhitespace += token;
       continue;
     }
-    let line = "";
-    for (const word of words) {
-      if (!line) line = word;
-      else if ((line + " " + word).length <= maxChars) line += ` ${word}`;
-      else {
-        output.push(line);
-        line = word;
-      }
-    }
-    if (line) output.push(line);
+    appendWord(token);
   }
+  if (line || pendingWhitespace) output.push(line + pendingWhitespace);
   return output.join("\n");
 }
 

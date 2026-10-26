@@ -1,6 +1,6 @@
 export type MotionEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out" | "ease-out-back";
 export type MotionDirection = "left" | "right" | "top" | "bottom";
-export type MotionEntrance = "none" | "fade-in" | "slide-in" | "zoom-in" | "scale-fade" | "cinematic-title" | "rotate-in" | "overshoot" | "typewriter" | "character-reveal" | "word-reveal";
+export type MotionEntrance = "none" | "fade-in" | "slide-in" | "slide-fade" | "rise-in" | "zoom-in" | "scale-fade" | "soft-pop" | "cinematic-title" | "rotate-in" | "overshoot" | "typewriter" | "character-reveal" | "word-reveal" | "character-pop";
 export type MotionExit = "none" | "fade-out" | "slide-out" | "zoom-out" | "rotate-out";
 export type MotionEmphasis = "none" | "float" | "pulse" | "drift" | "rotate";
 
@@ -38,7 +38,7 @@ function entranceType(value: unknown): MotionEntrance {
   if (value === "slide-in-out") return "slide-in";
   if (value === "zoom-in-out") return "zoom-in";
   if (value === "character-reveal") return "character-reveal";
-  return ["none", "fade-in", "slide-in", "zoom-in", "scale-fade", "cinematic-title", "rotate-in", "overshoot", "typewriter", "word-reveal"].includes(String(value))
+  return ["none", "fade-in", "slide-in", "slide-fade", "rise-in", "zoom-in", "scale-fade", "soft-pop", "cinematic-title", "rotate-in", "overshoot", "typewriter", "word-reveal", "character-pop"].includes(String(value))
     ? String(value) as MotionEntrance
     : "none";
 }

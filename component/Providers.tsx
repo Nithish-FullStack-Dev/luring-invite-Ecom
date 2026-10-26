@@ -10,6 +10,7 @@ import InviteLoader from "./loader/InviteLoader";
 import { TooltipProvider } from "./ui/tooltip";
 import { Toaster } from "./ui/toaster";
 import { Toaster as Sonner } from "./ui/sonner";
+import { SiteProtection } from "./SiteProtection";
 
 type ProvidersProps = {
   children: React.ReactNode;
@@ -46,7 +47,10 @@ export default function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Suspense fallback={null}>
-          <RouteAwareProviders>{children}</RouteAwareProviders>
+          <RouteAwareProviders>
+            {/* <SiteProtection /> */}
+            {children}
+          </RouteAwareProviders>
         </Suspense>
       </TooltipProvider>
     </QueryClientProvider>

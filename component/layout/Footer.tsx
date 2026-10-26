@@ -81,12 +81,12 @@ export default function Footer() {
             {/* Brand */}
             <div>
               <Link href="/" className="relative h-20 flex items-center">
-                <motion.img
-                  layoutId="site-logo"
+                <img
+                  // layoutId="site-logo"
                   src="/whitelogo.png"
                   alt="Logo"
                   className="h-24 w-auto object-contain"
-                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                  // transition={{ duration: 0.8, ease: "easeInOut" }}
                 />
               </Link>
               <p className="text-white/80 text-sm mb-6">{footer.text}</p>

@@ -8,9 +8,15 @@ import {
   normalizeNewlines,
   normalizeConfigForEditor,
 } from "@/lib/template-config";
-import { ffmpegProgress, ffmpegTransitionName, resolveSceneTransition, resolveTextMotion, timeForEasedProgress } from "@/lib/text-motion";
-import { resolveFontAsset, serverFontPath } from "@/lib/font-registry";
-import { revealUnits } from "@/lib/text-reveal";
+import { easeProgress, ffmpegProgress, ffmpegTransitionName, resolveSceneTransition, resolveTextMotion, timeForEasedProgress } from "@/lib/text-motion";
+import {
+  resolveFontAsset,
+  resolveFontFallbackSequence,
+  serverFontPath,
+} from "@/lib/font-registry";
+import { requiresComplexShaping, revealPrefix, revealUnits, supportsTextLetterSpacing } from "@/lib/text-reveal";
+import { createFontGlyphChecker, formatMissingCodePoints, readFontFamilyName } from "@/lib/font-glyphs";
+import { escapeSvgText, renderShapedSvgSequence, shapedTextSequenceDirectory } from "@/lib/shaped-text";
 import {
   compositionPositionPixels,
   wrapInvitationText,
@@ -21,6 +27,8 @@ const PROJECT_ROOT = process.cwd();
 const PUBLIC_ROOT = path.join(PROJECT_ROOT, "public");
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
+const fontCoverageCache = new Map<string, ReturnType<typeof createFontGlyphChecker>>();
+let shapingCapabilities: Promise<{ harfbuzz: boolean; fribidi: boolean; drawtextOption: boolean }> | null = null;
 const MAX_RENDER_SECONDS = Math.max(
   30,
   Number(process.env.MAX_RENDER_SECONDS || 180),
@@ -124,6 +132,7 @@ function validEnable(value: unknown): string | null {
 }
 
 function applyLetterSpacing(value: string, pixels: number, fontSize: number): string {
+  if (!supportsTextLetterSpacing(value)) return value;
   const hairSpaceWidth = Math.max(1, fontSize * 0.1);
   const count = Math.min(6, Math.max(0, Math.round(pixels / hairSpaceWidth)));
   if (!count) return value;
@@ -137,6 +146,158 @@ function applyLetterSpacing(value: string, pixels: number, fontSize: number): st
 function ffmpegEscapeFilterPath(relativePath: string): string {
   // All paths are generated beneath public/media without colons or quotes.
   return relativePath.replace(/\\/g, "/").replace(/'/g, "\\'");
+}
+
+function characterClasses(value: string) {
+  return Array.from(new Set(Array.from(value).map((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    if (/^\s+$/u.test(character)) return "space";
+    if (/\p{Script=Arabic}/u.test(character)) return "arabic";
+    if (/\p{Script=Devanagari}/u.test(character)) return "devanagari";
+    if (/\p{Script=Bengali}/u.test(character)) return "bengali";
+    if (/\p{Script=Gurmukhi}/u.test(character)) return "gurmukhi";
+    if (/\p{Script=Gujarati}/u.test(character)) return "gujarati";
+    if (/\p{Script=Oriya}/u.test(character)) return "oriya";
+    if (/\p{Script=Tamil}/u.test(character)) return "tamil";
+    if (/\p{Script=Telugu}/u.test(character)) return "telugu";
+    if (/\p{Script=Kannada}/u.test(character)) return "kannada";
+    if (/\p{Script=Malayalam}/u.test(character)) return "malayalam";
+    if (/\p{Script=Sinhala}/u.test(character)) return "sinhala";
+    if (/\p{Script=Thai}/u.test(character)) return "thai";
+    if (/\p{Script=Hebrew}/u.test(character)) return "hebrew";
+    if (/\p{Script=Greek}/u.test(character)) return "greek";
+    if (/\p{Script=Cyrillic}/u.test(character)) return "cyrillic";
+    if (/\p{Script=Han}/u.test(character)) return "han";
+    if (/\p{Script=Hiragana}/u.test(character)) return "hiragana";
+    if (/\p{Script=Katakana}/u.test(character)) return "katakana";
+    if (/\p{Script=Hangul}/u.test(character)) return "hangul";
+    if (/\p{Mark}/u.test(character)) return "mark";
+    if (code >= 0x1f300 && code <= 0x1faff) return "emoji";
+    return "latin";
+  })));
+}
+
+export async function resolveTextRenderFont(fontValue: unknown, text: string, weight: unknown = 400) {
+  const preferredFont = resolveFontAsset(fontValue);
+  const sequence = resolveFontFallbackSequence(fontValue, text);
+  const textSample = String(text ?? "");
+  let bestMissing: number[] | null = null;
+  let bestFont = preferredFont;
+  let lastFontIssue = "";
+  const checkedFonts: Array<{
+    font: ReturnType<typeof resolveFontAsset>;
+    path: string;
+    filePath: string;
+    missing: number[];
+    family: string;
+  }> = [];
+  for (const candidate of sequence) {
+    if (!candidate.serverPath || !candidate.renderable) continue;
+    let relativePath: string;
+    try {
+      relativePath = serverFontPath(candidate.id, candidate.id === preferredFont.id ? weight : 400);
+    } catch (error) {
+      lastFontIssue = error instanceof Error ? error.message : String(error);
+      continue;
+    }
+    const fontPath = path.resolve(PROJECT_ROOT, relativePath);
+    let checker = fontCoverageCache.get(fontPath);
+    let missing: number[];
+    try {
+      await fs.access(fontPath);
+      if (!checker) {
+        checker = createFontGlyphChecker(await fs.readFile(fontPath));
+        fontCoverageCache.set(fontPath, checker);
+      }
+      missing = checker(textSample);
+    } catch (error) {
+      lastFontIssue = error instanceof Error ? error.message : String(error);
+      continue;
+    }
+    if (missing.length === 0) {
+      return {
+        font: candidate,
+        path: relativePath,
+        filePath: fontPath,
+        supportsAllGlyphs: true,
+        familyStack: [readFontFamilyName(await fs.readFile(fontPath)) || candidate.label],
+        useShapedOverlay: candidate.id === "noto/NotoNastaliqUrdu-Regular.otf",
+      };
+    }
+    checkedFonts.push({
+      font: candidate,
+      path: relativePath,
+      filePath: fontPath,
+      missing,
+      family: readFontFamilyName(await fs.readFile(fontPath)) || candidate.label,
+    });
+    if (!bestMissing || missing.length < bestMissing.length) {
+      bestMissing = missing;
+      bestFont = candidate;
+    }
+  }
+
+  const codePoints = Array.from(new Set(Array.from(textSample, (character) => character.codePointAt(0) ?? 0)));
+  const unionMissing = codePoints.filter((codePoint) =>
+    checkedFonts.every(({ missing }) => missing.includes(codePoint))
+  );
+  if (checkedFonts.length && unionMissing.length === 0) {
+    const primary = checkedFonts.find(({ font }) => font.id === preferredFont.id) ?? checkedFonts[0];
+    return {
+      font: primary.font,
+      path: primary.path,
+      filePath: primary.filePath,
+      supportsAllGlyphs: false,
+      familyStack: checkedFonts.map(({ family }) => family),
+      fallbackFonts: checkedFonts.map(({ font }) => font),
+    };
+  }
+
+  const scriptNames = characterClasses(textSample)
+    .filter((name) => name !== "space" && name !== "latin")
+    .join(", ") || "this text";
+  const unresolved = unionMissing.length ? unionMissing : (bestMissing ?? []);
+  const missing = unresolved.length
+    ? ` Missing glyphs: ${formatMissingCodePoints(unresolved)}.`
+    : " No compatible font file is installed.";
+  const offered = sequence.filter((font) => font.renderable).map((font) => font.label).join(", ");
+  throw new Error(
+    `No installed font can render all characters in ${scriptNames}.${missing} Selected font: ${preferredFont.label}; closest match: ${bestFont.label}. Checked: ${offered || "none"}.${lastFontIssue ? ` Font check detail: ${lastFontIssue}` : ""} Upload a valid TTF/OTF font containing these glyphs, then retry.`,
+  );
+}
+
+async function verifyFfmpegTextShaping(text: string) {
+  if (!requiresComplexShaping(text)) return;
+  if (!shapingCapabilities) {
+    shapingCapabilities = (async () => {
+      const [help, build] = await Promise.all([
+        execFileAsync(FFMPEG, ["-hide_banner", "-h", "filter=drawtext"], {
+          cwd: PROJECT_ROOT, timeout: 15000, maxBuffer: 1024 * 1024, windowsHide: true,
+        }),
+        execFileAsync(FFMPEG, ["-hide_banner", "-buildconf"], {
+          cwd: PROJECT_ROOT, timeout: 15000, maxBuffer: 1024 * 1024, windowsHide: true,
+        }),
+      ]);
+      const helpOutput = `${help.stdout}\n${help.stderr}`;
+      const buildOutput = `${build.stdout}\n${build.stderr}`;
+      return {
+        drawtextOption: /\btext_shaping\s+</i.test(helpOutput),
+        harfbuzz: /--enable-libharfbuzz\b/i.test(buildOutput),
+        fribidi: /--enable-libfribidi\b/i.test(buildOutput),
+      };
+    })().catch((error) => {
+      shapingCapabilities = null;
+      throw error;
+    });
+  }
+  const capabilities = await shapingCapabilities;
+  const rtl = /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u.test(text);
+  if (!capabilities.drawtextOption || !capabilities.harfbuzz || (rtl && !capabilities.fribidi)) {
+    const required = rtl ? "HarfBuzz, FriBidi, and drawtext text_shaping" : "HarfBuzz and drawtext text_shaping";
+    throw new Error(
+      `This FFmpeg installation cannot shape the requested complex script. Video rendering requires ${required}. Install an FFmpeg build with those features and retry.`,
+    );
+  }
 }
 
 async function runFfmpeg(args: string[]): Promise<void> {
@@ -207,6 +368,188 @@ function getFrameTexts(configValue: unknown, frameInput: FrameInput): RendererTe
   });
 }
 
+type ShapedTextLayer = {
+  config: RendererTextConfig;
+  familyStack: string[];
+  lines: string[];
+  fontSize: number;
+  boxWidth: number;
+  boxHeight: number;
+  alignment: "left" | "center" | "right";
+  letterSpacing: number;
+};
+
+function svgColor(value: unknown, fallback: string) {
+  const color = String(value ?? fallback).trim();
+  return /^(#[\da-f]{3,8}|[a-z]{1,30}|rgba?\([\d.% ,]+\))$/i.test(color) ? color : fallback;
+}
+
+function renderMotionTextConfig(config: RendererTextConfig) {
+  if (isRecord(config.anim)) return config.anim;
+  const entranceType = String(config.animation ?? "none");
+  return {
+    type: entranceType,
+    entrance: {
+      type: entranceType,
+      start: config.animationDelay,
+      duration: config.animationDuration,
+      direction: config.animationDirection,
+      easing: config.animationEasing,
+    },
+    exit: {
+      type: config.exitAnimation,
+      start: config.exitStart,
+      duration: config.exitDuration,
+      easing: config.exitEasing,
+    },
+    emphasis: {
+      type: config.emphasisAnimation,
+      intensity: config.emphasisIntensity,
+    },
+  };
+}
+
+function shapedTextMotion(layer: ShapedTextLayer, time: number, sceneDuration: number, canvas: CanvasSize) {
+  const config = layer.config;
+  const animation = resolveTextMotion(renderMotionTextConfig(config), sceneDuration);
+  const { type, duration, delay, direction, easing, exitType, exitDuration, exitStart, exitEasing, emphasisType, intensity } = animation;
+  const visibleStart = finiteSeconds(config.visibleStart, 0, 0, sceneDuration);
+  const visibleEnd = config.visibleEnd === null || config.visibleEnd === ""
+    ? sceneDuration
+    : finiteSeconds(config.visibleEnd, sceneDuration, visibleStart, sceneDuration);
+  let opacity = finiteSeconds(config.opacity, 1, 0, 1);
+  let dx = 0;
+  let dy = 0;
+  let scale = 1;
+  let rotation = finiteSeconds(config.rotation, 0, -180, 180);
+  const progress = (from: number, span: number, ease = easing) =>
+    easeProgress((time - from) / Math.max(0.1, span), ease);
+  const inProgress = progress(delay, duration);
+  const fadedEntrance = ["fade-in", "slide-fade", "rise-in", "zoom-in", "scale-fade", "soft-pop", "cinematic-title", "rotate-in", "overshoot"].includes(type);
+  if (fadedEntrance) opacity *= progress(delay, duration);
+  if (type === "slide-in" || type === "slide-fade") {
+    if (direction === "left") dx = -(1 - inProgress) * layer.boxWidth;
+    else if (direction === "right") dx = (1 - inProgress) * canvas.width;
+    else if (direction === "top") dy = -(1 - inProgress) * layer.boxHeight;
+    else dy = (1 - inProgress) * canvas.height;
+  }
+  if (type === "rise-in") dy += (1 - inProgress) * 30;
+  if (type === "zoom-in") scale = 0.86 + 0.14 * inProgress;
+  if (type === "scale-fade" || type === "overshoot") scale = 0.76 + 0.24 * inProgress;
+  if (type === "soft-pop") scale = 0.9 + 0.1 * inProgress;
+  if (type === "cinematic-title") {
+    scale = 0.94 + 0.06 * inProgress;
+    dy += (1 - inProgress) * 36;
+  }
+  if (type === "rotate-in") {
+    rotation += (1 - inProgress) * 10;
+    if (time < delay + duration) scale = 0.96 + 0.04 * inProgress;
+  }
+  const isReveal = ["typewriter", "character-reveal", "word-reveal", "character-pop"].includes(type);
+  const revealMode = type === "word-reveal" ? "word" : "letter";
+  const revealedLines = isReveal
+    ? layer.lines.map((line) => revealPrefix(line, revealMode, progress(delay, duration)))
+    : layer.lines;
+  if (isReveal) {
+    if (time < delay) opacity = 0;
+    if (type === "character-pop") {
+      const allUnits = layer.lines.flatMap((line) => revealUnits(line, "letter"));
+      if (allUnits.length) {
+        const current = Math.max(0, Math.min(allUnits.length, Math.ceil(allUnits.length * progress(delay, duration))));
+        const inSettle = Math.max(0.01, Math.min(0.16, duration / Math.max(1, allUnits.length)));
+        const settled = current === 0 ? 0 : easeProgress(Math.min(1, (time - delay - ((current - 1) / allUnits.length) * duration) / inSettle), "ease-out");
+        scale *= 0.72 + 0.28 * settled;
+        opacity *= settled;
+      }
+    }
+  }
+  const isFadingExit = ["fade-out", "zoom-out", "rotate-out"].includes(exitType);
+  const outProgress = time > exitStart ? progress(exitStart, exitDuration, exitEasing) : 0;
+  if (exitType !== "none" && time > exitStart) {
+    if (isFadingExit) opacity *= 1 - outProgress;
+    if (exitType === "zoom-out") scale *= 1 - 0.14 * outProgress;
+    if (exitType === "slide-out") {
+      if (direction === "left") dx = -outProgress * layer.boxWidth;
+      else if (direction === "right") dx = outProgress * canvas.width;
+      else if (direction === "top") dy = -outProgress * layer.boxHeight;
+      else dy = outProgress * canvas.height;
+    }
+    if (exitType === "rotate-out") rotation += 10 * outProgress;
+  }
+  if (emphasisType === "float") dy += Math.sin(time * 2.1) * 12 * intensity;
+  if (emphasisType === "drift") dx += Math.sin(time * 0.45) * 18 * intensity;
+  if (emphasisType === "pulse") scale *= 1 + Math.sin(time * 2.2) * 0.025 * intensity;
+  if (emphasisType === "rotate") rotation += Math.sin(time * 1.3) * 3 * intensity;
+  if (time < visibleStart || time > visibleEnd) opacity = 0;
+  return { opacity: Math.max(0, Math.min(1, opacity)), dx, dy, scale, rotation, revealedLines };
+}
+
+function shapedTextSvg(layers: ShapedTextLayer[], time: number, sceneDuration: number, canvas: CanvasSize) {
+  const definitions: string[] = [];
+  const contents = layers.map((layer, layerIndex) => {
+    const config = layer.config;
+    const motion = shapedTextMotion(layer, time, sceneDuration, canvas);
+    const rawX = config.x ?? config.position?.x;
+    const rawY = config.y ?? config.position?.y ?? "center";
+    const anchorX = compositionPositionPixels(rawX, canvas.width, 50, "x");
+    const anchorY = compositionPositionPixels(rawY, canvas.height, 50, "y");
+    const left = layer.alignment === "left" ? anchorX : layer.alignment === "right" ? anchorX - layer.boxWidth : anchorX - layer.boxWidth / 2;
+    const top = anchorY - layer.boxHeight / 2;
+    const centerX = left + layer.boxWidth / 2;
+    const centerY = top + layer.boxHeight / 2;
+    const letterSpacing = layer.letterSpacing;
+    const weight = Math.max(100, Math.min(900, Number(config.fontWeight) || 400));
+    const color = svgColor(config.fontColor ?? config.color, "#000000");
+    const strokeWidth = finiteSeconds(config.strokeWidth, 0, 0, 20);
+    const stroke = svgColor(config.strokeColor, color);
+    const backgroundOpacity = finiteSeconds(config.backgroundOpacity, 0, 0, 1);
+    const background = svgColor(config.backgroundColor, "#000000");
+    const padding = finiteSeconds(config.backgroundPadding, 8, 0, 60);
+    const lineHeight = Math.max(1, layer.fontSize + finiteSeconds(config.lineSpacing, 8, -10, 80));
+    const firstStrong = Array.from(layer.lines.join("\n")).find((character) => /[\p{Letter}\p{Number}]/u.test(character));
+    const isRtl = Boolean(firstStrong && /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u.test(firstStrong));
+    const anchor = layer.alignment === "center" ? "middle"
+      : layer.alignment === "left" ? (isRtl ? "end" : "start")
+        : (isRtl ? "start" : "end");
+    const x = layer.alignment === "left" ? left : layer.alignment === "right" ? left + layer.boxWidth : centerX;
+    const textLines = motion.revealedLines.map((line, index) => {
+      if (!line.length) return "";
+      const y = centerY + (index - (layer.lines.length - 1) / 2) * lineHeight;
+      return `<text x="${x.toFixed(3)}" y="${y.toFixed(3)}" text-anchor="${anchor}" dominant-baseline="central" font-family="${escapeSvgText(layer.familyStack.join(", "))}" font-size="${layer.fontSize}" font-weight="${weight}" font-style="${config.italic === true ? "italic" : "normal"}" letter-spacing="${letterSpacing}" fill="${color}" stroke="${strokeWidth ? stroke : "none"}" stroke-width="${strokeWidth}" stroke-linejoin="round" paint-order="stroke fill" direction="${isRtl ? "rtl" : "ltr"}" unicode-bidi="plaintext">${escapeSvgText(line)}</text>`;
+    }).join("");
+    const bg = backgroundOpacity > 0
+      ? `<rect x="${(left - padding).toFixed(3)}" y="${(top - padding).toFixed(3)}" width="${(layer.boxWidth + padding * 2).toFixed(3)}" height="${(layer.boxHeight + padding * 2).toFixed(3)}" fill="${background}" fill-opacity="${backgroundOpacity.toFixed(3)}"/>`
+      : "";
+    const shadowX = finiteSeconds(config.shadowX, 0, -40, 40);
+    const shadowY = finiteSeconds(config.shadowY, 0, -40, 40);
+    const shadow = shadowX || shadowY
+      ? `filter="url(#shadow-${layerIndex})"`
+      : "";
+    const shadowDef = shadowX || shadowY
+      ? `<filter id="shadow-${layerIndex}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="${Math.max(0.1, finiteSeconds(config.shadowBlur, 2, 0, 40))}"/><feOffset dx="${shadowX}" dy="${shadowY}" result="offsetblur"/><feFlood flood-color="${svgColor(config.shadowColor, "#000000")}" flood-opacity="${finiteSeconds(config.shadowOpacity, 0.5, 0, 1)}"/><feComposite in2="offsetblur" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>`
+      : "";
+    if (shadowDef) definitions.push(shadowDef);
+    const transform = `translate(${(motion.dx + centerX).toFixed(3)} ${(motion.dy + centerY).toFixed(3)}) rotate(${motion.rotation.toFixed(3)}) scale(${motion.scale.toFixed(5)}) translate(${-centerX.toFixed(3)} ${-centerY.toFixed(3)})`;
+    return `${shadowDef}<g transform="${transform}" opacity="${motion.opacity.toFixed(4)}" ${shadow}>${bg}${textLines}</g>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}" viewBox="0 0 ${canvas.width} ${canvas.height}"><defs>${definitions.join("")}</defs>${contents}</svg>`;
+}
+
+async function rasterizeShapedTextLayerSequence(
+  layers: ShapedTextLayer[],
+  workDirRelative: string,
+  sceneDuration: number,
+  canvas: CanvasSize,
+) {
+  if (!layers.length) return null;
+  const directory = shapedTextSequenceDirectory(path.join(PROJECT_ROOT, workDirRelative));
+  return renderShapedSvgSequence(
+    (frame) => shapedTextSvg(layers, frame / 30, sceneDuration, canvas),
+    directory,
+    Math.max(1, Math.ceil(sceneDuration * 30)),
+  );
+}
+
 async function buildFrameFilterScript(
   frame: RenderFrame,
   frameInput: FrameInput,
@@ -214,7 +557,7 @@ async function buildFrameFilterScript(
   frameIndex: number,
   canvas: CanvasSize,
   sceneDuration: number,
-): Promise<string> {
+): Promise<{ filterScript: string; overlaySequence: string | null }> {
   const normalizedConfig = normalizeConfigForEditor(frame.placeholderConfig);
   const texts = getFrameTexts(normalizedConfig, frameInput);
   const fit = ["cover", "fill"].includes(String(normalizedConfig.backgroundFit))
@@ -237,6 +580,7 @@ async function buildFrameFilterScript(
         ];
   filters.unshift("setpts=PTS-STARTPTS");
   const graphParts: string[] = [];
+  const shapedLayers: ShapedTextLayer[] = [];
   let chainInput = "[0:v]";
   let chainIndex = 0;
 
@@ -255,13 +599,47 @@ async function buildFrameFilterScript(
       rawAlignment === "left" || rawAlignment === "right" ? rawAlignment : "center";
 
     const fontValue = textConfig.fontFile ?? textConfig.font ?? "DejaVuSans.ttf";
-    const resolvedFont = resolveFontAsset(fontValue);
-    const fontRelative = serverFontPath(fontValue, textConfig.fontWeight);
-    const actualFont = path.resolve(PROJECT_ROOT, fontRelative);
+    const sourceText = String(textConfig.text ?? "");
+    const renderFont = await resolveTextRenderFont(fontValue, sourceText, textConfig.fontWeight);
+    const resolvedFont = renderFont.font;
+    const fontRelative = renderFont.path ?? serverFontPath(fontValue, textConfig.fontWeight);
+    const actualFont = renderFont.filePath ?? path.resolve(PROJECT_ROOT, fontRelative);
+    if (!renderFont.supportsAllGlyphs || renderFont.useShapedOverlay) {
+      const letterSpacing = resolvedFont.supportsLetterSpacing && supportsTextLetterSpacing(sourceText)
+        ? finiteSeconds(textConfig.letterSpacing, 0, 0, 12)
+        : 0;
+      shapedLayers.push({
+        config: textConfig,
+        familyStack: renderFont.familyStack,
+        lines,
+        fontSize,
+        boxWidth: Math.max(80, Math.round(canvas.width * boxWidth)),
+        boxHeight: Math.max(60, Math.round(canvas.height * finiteSeconds(textConfig.boxHeight, 20, 5, 90) / 100)),
+        alignment,
+        letterSpacing,
+      });
+      textIndex++;
+      continue;
+    }
+    await verifyFfmpegTextShaping(sourceText);
     try {
       await fs.access(actualFont);
     } catch {
       throw new Error(`Font asset for "${resolvedFont.label}" is missing at ${fontRelative}. Upload a TTF/OTF font or select one of the installed CRM fonts.`);
+    }
+    let glyphChecker = fontCoverageCache.get(actualFont);
+    if (!glyphChecker) {
+      glyphChecker = createFontGlyphChecker(await fs.readFile(actualFont));
+      fontCoverageCache.set(actualFont, glyphChecker);
+    }
+    const missingGlyphs = glyphChecker(sourceText, 20);
+    if (missingGlyphs.length) {
+      const fallbackFonts = resolveFontFallbackSequence(fontValue)
+        .map((font) => font.label)
+        .join(", ");
+      throw new Error(
+        `Font "${resolvedFont.label}" does not contain ${formatMissingCodePoints(missingGlyphs)} used by this text. Available fallback fonts: ${fallbackFonts}. Choose a Unicode-capable font or upload a valid TTF/OTF file with the required glyphs.`,
+      );
     }
 
     const x = validPosition(
@@ -294,7 +672,7 @@ async function buildFrameFilterScript(
     const backgroundOpacity = finiteSeconds(textConfig.backgroundOpacity, 0, 0, 1);
     const backgroundColor = colorForFfmpeg(textConfig.backgroundColor);
     const backgroundPadding = Math.round(finiteSeconds(textConfig.backgroundPadding, 8, 0, 60));
-    const letterSpacing = resolvedFont.supportsLetterSpacing
+    const letterSpacing = resolvedFont.supportsLetterSpacing && supportsTextLetterSpacing(sourceText)
       ? finiteSeconds(textConfig.letterSpacing, 0, 0, 12)
       : 0;
     const legacyTiming =
@@ -312,7 +690,10 @@ async function buildFrameFilterScript(
     const alpha = validEnable(textConfig.alpha);
     const rotation = finiteSeconds(textConfig.rotation, 0, -180, 180);
     const isRotated = Math.abs(rotation) > 0.05;
-    const isTextReveal = animation.type === "typewriter" || animation.type === "character-reveal" || animation.type === "word-reveal";
+    const isTextReveal = animation.type === "typewriter" || animation.type === "character-reveal" || animation.type === "word-reveal" || animation.type === "character-pop";
+    const characterPopProgress = animation.type === "character-pop"
+      ? characterPopProgressExpression(lines, animation, sceneDuration)
+      : "1";
     const usesLayer = isRotated || textConfig.italic === true || animation.type === "rotate-in" || animation.exitType === "rotate-out" || animation.emphasisType === "rotate";
     const layerWidth = Math.max(80, Math.round(canvas.width * boxWidth));
     const layerHeight = Math.max(60, Math.round(canvas.height * finiteSeconds(textConfig.boxHeight, 20, 5, 90) / 100));
@@ -469,16 +850,34 @@ async function buildFrameFilterScript(
             ? sceneDuration + 0.01
             : timeForEasedProgress(animation.delay, animation.duration, animation.easing, (unitIndex + 1) / units.length);
           const prefixFile = await writeTextFile(`reveal-${mode}-${unitIndex}`, prefix);
+          let revealX = usesLayer ? localX : x;
+          let revealY = usesLayer ? localY : y;
+          const revealSlide = animation.exitType === "slide-out";
+          if (revealSlide && !usesLayer) {
+            const from = animation.direction === "left" ? "-text_w" : animation.direction === "right" ? "w" : animation.direction === "top" ? "-text_h" : "h";
+            const horizontal = animation.direction === "left" || animation.direction === "right";
+            const target = horizontal ? revealX : revealY;
+            const offscreen = horizontal ? (animation.direction === "left" ? "-text_w" : "w") : (animation.direction === "top" ? "-text_h" : "h");
+            const exitProgress = easedProgress(animation.exitStart, animation.exitDuration, animation.exitEasing);
+            const motion = `if(lt(t,${animation.exitStart.toFixed(3)}),${target},(${target})+((${offscreen})-(${target}))*(${exitProgress}))`;
+            if (horizontal) revealX = motion;
+            else revealY = motion;
+          }
           const params = makeParams(
             prefixFile,
-            usesLayer ? localX : x,
-            usesLayer ? localY : y,
-            revealSize,
+            revealX,
+            revealY,
+            animation.type === "character-pop"
+              ? `max(6,${fontSize}*(0.72+0.28*(${characterPopProgress})))`
+              : revealSize,
           );
           const startCheck = unitIndex === 0 ? "gt" : "gte";
           const stageEnable = `${startCheck}(t,${stageStart.toFixed(6)})*lt(t,${stageEnd.toFixed(6)})`;
           params.push(`enable='(${enable})*(${stageEnable})'`);
           const alphaExpressions = [
+            animation.type === "character-pop"
+              ? `(${characterPopProgress})`
+              : "",
             exitFade ? `(${exitFade})` : "",
             alpha && /^if\(/i.test(alpha) ? `(${alpha})` : "",
             textOpacity < 1 ? textOpacity.toFixed(3) : "",
@@ -505,13 +904,13 @@ async function buildFrameFilterScript(
       const exitZoom = exitType === "zoom-out";
       const fadeIn = `if(lt(t,${start.toFixed(3)}),0,if(lt(t,${enterEnd.toFixed(3)}),${inProgress},1))`;
       const exitFadeExpr = `if(lt(t,${exitStart.toFixed(3)}),1,if(lt(t,${exitEnd.toFixed(3)}),1-(${outProgress}),0))`;
-      const entersWithFade = ["fade-in", "zoom-in", "scale-fade", "cinematic-title", "rotate-in", "overshoot"].includes(animation.type);
+      const entersWithFade = ["fade-in", "slide-fade", "rise-in", "soft-pop", "zoom-in", "scale-fade", "cinematic-title", "rotate-in", "overshoot"].includes(animation.type);
       const entranceAlpha = entersWithFade ? fadeIn : "1";
       const combinedFade = exitFade ? `(${entranceAlpha})*(${exitFadeExpr})` : entersWithFade ? entranceAlpha : null;
 
       if (animation.type === "fade-in") {
         animatedAlpha = combinedFade;
-      } else if (animation.type === "slide-in") {
+      } else if (animation.type === "slide-in" || animation.type === "slide-fade") {
         const fromX = animation.direction === "left" ? "-text_w" : animation.direction === "right" ? "w" : x;
         const fromY = animation.direction === "top" ? "-text_h" : animation.direction === "bottom" ? "h" : y;
         const movesX = animation.direction === "left" || animation.direction === "right";
@@ -524,14 +923,17 @@ async function buildFrameFilterScript(
         if (movesX) animatedX = position;
         else animatedY = position;
         animatedAlpha = combinedFade;
-      } else if (["zoom-in", "scale-fade", "cinematic-title", "overshoot"].includes(animation.type)) {
-        const initialScale = animation.type === "scale-fade" || animation.type === "overshoot" ? 0.76 : animation.type === "cinematic-title" ? 0.94 : 0.86;
+      } else if (["zoom-in", "scale-fade", "soft-pop", "cinematic-title", "overshoot"].includes(animation.type)) {
+        const initialScale = animation.type === "scale-fade" || animation.type === "overshoot" ? 0.76 : animation.type === "soft-pop" ? 0.9 : animation.type === "cinematic-title" ? 0.94 : 0.86;
         const scaleExpr = `${initialScale}+${(1 - initialScale).toFixed(3)}*(${inProgress})`;
         const enteringSize = `if(lt(t,${start.toFixed(3)}),${initialScale},if(lt(t,${enterEnd.toFixed(3)}),${scaleExpr},1))`;
         const sizeExpr = exitZoom
           ? `if(lt(t,${start.toFixed(3)}),${initialScale},if(lt(t,${enterEnd.toFixed(3)}),${scaleExpr},if(lt(t,${exitStart.toFixed(3)}),1,1-0.14*(${outProgress}))))`
           : enteringSize;
         animatedSize = `max(6,${fontSize}*(${sizeExpr}))`;
+        animatedAlpha = combinedFade;
+      } else if (animation.type === "rise-in") {
+        animatedY = `if(lt(t,${start.toFixed(3)}),(${y})+30,if(lt(t,${enterEnd.toFixed(3)}),(${y})+30*(1-(${inProgress})),${y}))`;
         animatedAlpha = combinedFade;
       } else if (animation.type === "rotate-in") {
         const rotateScale = `if(lt(t,${start.toFixed(3)}),0.96,if(lt(t,${enterEnd.toFixed(3)}),0.96+0.04*(${inProgress}),1))`;
@@ -547,7 +949,7 @@ async function buildFrameFilterScript(
         animatedSize = `max(6,${fontSize}*(1-0.14*(${outProgress})))`;
         animatedAlpha = exitFadeExpr;
       }
-      if (exitZoom && !["zoom-in", "scale-fade", "cinematic-title", "overshoot"].includes(animation.type)) {
+      if (exitZoom && !["zoom-in", "scale-fade", "soft-pop", "cinematic-title", "overshoot"].includes(animation.type)) {
         const entranceScale = animation.type === "rotate-in"
           ? `if(lt(t,${start.toFixed(3)}),0.96,if(lt(t,${enterEnd.toFixed(3)}),0.96+0.04*(${inProgress}),1))`
           : "1";
@@ -582,12 +984,20 @@ async function buildFrameFilterScript(
     textIndex++;
   }
 
-  if (graphParts.length === 0) {
+  const overlaySequence = await rasterizeShapedTextLayerSequence(shapedLayers, workDirRelative, sceneDuration, canvas);
+  if (overlaySequence) {
+    const baseLabel = `base_shaped_${frameIndex}`;
+    const shapedLabel = `text_shaped_${frameIndex}`;
+    graphParts.push(`${chainInput}${filters.length ? `${filters.join(",")},` : ""}format=yuv420p[${baseLabel}]`);
+    graphParts.push(`[1:v]setpts=PTS-STARTPTS,fps=30,format=rgba[${shapedLabel}]`);
+    graphParts.push(`[${baseLabel}][${shapedLabel}]overlay=x=0:y=0:format=auto:repeatlast=0:eof_action=pass:shortest=0,format=yuv420p[vout]`);
+  } else if (graphParts.length === 0) {
     filters.push("format=yuv420p");
-    return `[0:v]${filters.join(",")}[vout]`;
+    return { filterScript: `[0:v]${filters.join(",")}[vout]`, overlaySequence: null };
+  } else {
+    graphParts.push(`${chainInput}${filters.length ? `${filters.join(",")},` : ""}format=yuv420p[vout]`);
   }
-  graphParts.push(`${chainInput}${filters.length ? `${filters.join(",")},` : ""}format=yuv420p[vout]`);
-  return graphParts.join(";\n");
+  return { filterScript: graphParts.join(";\n"), overlaySequence };
 }
 
 function finiteSeconds(
@@ -606,6 +1016,27 @@ function getTextAnimation(value: unknown, sceneDuration: number) {
 
 function easedProgress(start: number, duration: number, easing: string) {
   return ffmpegProgress(start, duration, easing as Parameters<typeof ffmpegProgress>[2]);
+}
+
+function characterPopProgressExpression(
+  lines: string[],
+  animation: ReturnType<typeof resolveTextMotion>,
+  sceneDuration: number,
+) {
+  const lineExpressions = lines.filter((line) => line.length > 0).map((line) => {
+    const units = revealUnits(line, "letter");
+    let expression = "1";
+    for (let index = units.length - 1; index >= 0; index--) {
+      const start = timeForEasedProgress(animation.delay, animation.duration, animation.easing, index / units.length);
+      const end = index === units.length - 1
+        ? sceneDuration + 0.01
+        : timeForEasedProgress(animation.delay, animation.duration, animation.easing, (index + 1) / units.length);
+      const settle = Math.max(0.01, Math.min(0.16, end - start));
+      expression = `if(lt(t,${start.toFixed(6)}),0,if(lt(t,${end.toFixed(6)}),(${easedProgress(start, settle, "ease-out")}),(${expression})))`;
+    }
+    return `(${expression})`;
+  });
+  return lineExpressions.length ? `(${lineExpressions.join("+")})/${lineExpressions.length}` : "1";
 }
 
 export async function renderInvitation(
@@ -672,7 +1103,7 @@ export async function renderInvitation(
         options.framesData[String(frame.id)] ||
         options.framesData[String(index)] ||
         {};
-      const filterScript = await buildFrameFilterScript(
+      const builtFilter = await buildFrameFilterScript(
         frame,
         frameInput,
         workDirRelative,
@@ -680,13 +1111,16 @@ export async function renderInvitation(
         canvas,
         sceneDuration,
       );
-      await fs.writeFile(scriptAbsolute, filterScript, "utf8");
+      await fs.writeFile(scriptAbsolute, builtFilter.filterScript, "utf8");
 
       const args = [
         "-y",
         ...(isStillImage ? ["-loop", "1", "-framerate", "30", "-t", String(sceneDuration)] : []),
         "-i",
         inputAbsolute,
+        ...(builtFilter.overlaySequence
+          ? ["-framerate", "30", "-start_number", "0", "-i", builtFilter.overlaySequence]
+          : []),
         "-filter_complex_script",
         scriptAbsolute,
         "-map",

@@ -13,14 +13,19 @@ import {
   resolveSceneTransition,
   resolveTextMotion,
   type SceneTransition,
+  timeForEasedProgress,
 } from "@/lib/text-motion";
 import {
   FONT_REGISTRY,
   browserFontFaceCss,
   fontFamilyForEditor,
+  fontFamilyStackForEditor,
   resolveFontAsset,
+  resolveFontFallbackSequence,
+  serverFontPath,
 } from "@/lib/font-registry";
-import { revealPrefix } from "@/lib/text-reveal";
+import { revealPrefix, revealUnits, supportsTextLetterSpacing } from "@/lib/text-reveal";
+import { createFontGlyphChecker, formatMissingCodePoints } from "@/lib/font-glyphs";
 import {
   compositionPositionPercent,
   wrapInvitationText,
@@ -30,13 +35,17 @@ const entrances = [
   "none",
   "fade-in",
   "slide-in",
+  "slide-fade",
+  "rise-in",
   "zoom-in",
   "scale-fade",
+  "soft-pop",
   "cinematic-title",
   "rotate-in",
   "overshoot",
   "typewriter",
   "word-reveal",
+  "character-pop",
 ] as const;
 const exits = [
   "none",
@@ -169,15 +178,18 @@ function pct(value: number) {
   return `${Math.min(100, Math.max(0, value)).toFixed(2)}%`;
 }
 function titlePreset(value: string) {
-  if (value === "typewriter" || value === "character-reveal")
-    return "Letter by letter";
-  if (value === "word-reveal") return "Word by word";
+  if (value === "typewriter" || value === "character-reveal") return "Typewriter · letters";
+  if (value === "word-reveal") return "Typewriter · words";
+  if (value === "character-pop") return "Character pop · shaped";
+  if (value === "slide-fade") return "Slide and fade";
+  if (value === "rise-in") return "Smooth rise";
+  if (value === "soft-pop") return "Soft pop";
   return value
     .replace(/-/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 function isTextReveal(value: string) {
-  return ["typewriter", "character-reveal", "word-reveal"].includes(value);
+  return ["typewriter", "character-reveal", "word-reveal", "character-pop"].includes(value);
 }
 function previewRevealText(
   text: TemplateTextDraft,
@@ -213,8 +225,66 @@ function previewRevealText(
     .map((line) => revealPrefix(line, mode, progress))
     .join("\n");
 }
+
+function characterPopLineState(text: TemplateTextDraft, line: string, time: number, sceneDuration: number) {
+  const animation = resolveTextMotion({
+    type: text.animation,
+    entrance: { type: text.animation, duration: text.animationDuration, start: text.animationDelay, easing: text.animationEasing },
+  }, sceneDuration);
+  const units = revealUnits(line, "letter");
+  if (!units.length) return { scale: 1, opacity: 1 };
+  if (time < animation.delay) return { scale: 1, opacity: 0 };
+  for (let index = 0; index < units.length; index++) {
+    const start = timeForEasedProgress(animation.delay, animation.duration, animation.easing, index / units.length);
+    const end = index === units.length - 1
+      ? sceneDuration + 0.01
+      : timeForEasedProgress(animation.delay, animation.duration, animation.easing, (index + 1) / units.length);
+    if (time < end) {
+      const settle = Math.max(0.01, Math.min(0.16, end - start));
+      const progress = Math.max(0, Math.min(1, (time - start) / settle));
+      const eased = easeProgress(progress, "ease-out");
+      return { scale: 0.72 + 0.28 * eased, opacity: eased };
+    }
+  }
+  return { scale: 1, opacity: 1 };
+}
+function characterPopState(text: TemplateTextDraft, time: number, sceneDuration: number, compositionWidth: number) {
+  const wrapped = wrapInvitationText(
+    text.text,
+    num(text.fontSize, 48, 6, 240),
+    (compositionWidth * num(text.boxWidth, 90, 10, 100)) / 100,
+  );
+  const lines = wrapped.split("\n").filter((line) => line.length > 0);
+  if (!lines.length) return { scale: 1, opacity: 1 };
+  const states = lines.map((line) => characterPopLineState(text, line, time, sceneDuration));
+  return {
+    scale: states.reduce((sum, state) => sum + state.scale, 0) / states.length,
+    opacity: states.reduce((sum, state) => sum + state.opacity, 0) / states.length,
+  };
+}
 function isImagePath(value: string) {
   return /\.(avif|gif|jpe?g|png|webp)$/i.test(value);
+}
+const browserFontData = new Map<string, Promise<Uint8Array>>();
+const browserFontCoverage = new Map<string, Promise<ReturnType<typeof createFontGlyphChecker>>>();
+function loadBrowserFontData(url: string) {
+  let data = browserFontData.get(url);
+  if (!data) {
+    data = fetch(url).then((response) => {
+      if (!response.ok) throw new Error("Font file request failed.");
+      return response.arrayBuffer().then((bytes) => new Uint8Array(bytes));
+    });
+    browserFontData.set(url, data);
+  }
+  return data;
+}
+function loadBrowserFontChecker(url: string) {
+  let checker = browserFontCoverage.get(url);
+  if (!checker) {
+    checker = loadBrowserFontData(url).then((bytes) => createFontGlyphChecker(bytes));
+    browserFontCoverage.set(url, checker);
+  }
+  return checker;
 }
 function outputComposition(width: number, height: number) {
   const scale = Math.min(1080 / Math.max(2, width), 1920 / Math.max(2, height));
@@ -383,19 +453,29 @@ function previewMotion(
     "fade-in",
     "zoom-in",
     "scale-fade",
+    "soft-pop",
     "cinematic-title",
     "rotate-in",
     "overshoot",
+    "slide-fade",
+    "rise-in",
   ].includes(type);
   if (entersFade) opacity *= progress(start, inDuration, easing);
-  if (type === "slide-in") {
+  if (type === "slide-in" || type === "slide-fade") {
     if (direction === "left") dx = -(1 - p) * boxWidth;
     else if (direction === "right") dx = (1 - p) * canvasWidth;
     else if (direction === "top") dy = -(1 - p) * boxHeight;
     else dy = (1 - p) * canvasHeight;
   }
+  if (type === "rise-in") dy += ((1 - p) * 30 * canvasHeight) / compositionHeight;
   if (type === "zoom-in") scale = 0.86 + 0.14 * p;
   if (type === "scale-fade") scale = 0.76 + 0.24 * p;
+  if (type === "soft-pop") scale = 0.9 + 0.1 * p;
+  if (type === "character-pop") {
+    const pop = characterPopState(text, time, duration, compositionWidth);
+    scale *= pop.scale;
+    opacity *= pop.opacity;
+  }
   if (type === "cinematic-title") {
     scale = 0.94 + 0.06 * p;
     dy += ((1 - p) * 36 * canvasHeight) / compositionHeight;
@@ -408,9 +488,11 @@ function previewMotion(
   if (
     type === "typewriter" ||
     type === "character-reveal" ||
-    type === "word-reveal"
+    type === "word-reveal" ||
+    type === "character-pop"
   ) {
     if (time < start) opacity = 0;
+    if (type === "character-pop") opacity = Math.min(opacity, characterPopState(text, time, duration, compositionWidth).opacity);
     const out = time > end ? progress(end, outDuration, exitEasing) : 0;
     if (["fade-out", "zoom-out", "rotate-out"].includes(exitType))
       opacity *= 1 - out;
@@ -516,6 +598,12 @@ export default function TemplateCanvasEditor({
   const [playhead, setPlayhead] = useState(0);
   const [fontQuery, setFontQuery] = useState("");
   const [fontLoadFailures, setFontLoadFailures] = useState<string[]>([]);
+  const [fontRenderChoices, setFontRenderChoices] = useState<Record<string, {
+    fontId: string | null;
+    fontIds?: string[];
+    fallback: boolean;
+    error?: string;
+  }>>({});
   const [assetKind, setAssetKind] = useState<"templates" | "uploads">(
     "templates",
   );
@@ -618,6 +706,20 @@ export default function TemplateCanvasEditor({
   const selectedIndex =
     frame?.texts.findIndex((text) => text.key === activeKey) ?? -1;
   const selected = selectedIndex >= 0 ? frame.texts[selectedIndex] : undefined;
+  const fontRenderKey = (frameId: number | string | undefined, textKey: string) =>
+    `${String(frameId ?? "")}:${textKey}`;
+  const editorFontFamily = (frameId: number | string | undefined, text: TemplateTextDraft) => {
+    const choice = fontRenderChoices[fontRenderKey(frameId, text.key)];
+    return fontFamilyStackForEditor(text.font, text.text, text.fontWeight, choice?.fontIds);
+  };
+  const selectedFontChoice = selected && frame
+    ? fontRenderChoices[fontRenderKey(currentFrameIndex, selected.key)]
+    : undefined;
+  const fontGlyphWarning = selectedFontChoice?.error ?? (
+    selectedFontChoice?.fallback
+      ? "The selected font is kept for its supported characters; script-specific bundled fonts render the remaining characters."
+      : ""
+  );
   const previewTime = Math.min(playhead, duration);
   const usedFonts = useMemo(() => {
     const options = new Map(
@@ -689,6 +791,58 @@ export default function TemplateCanvasEditor({
     return () => {
       current = false;
     };
+  }, [frames]);
+
+  useEffect(() => {
+    let current = true;
+    const texts = frames.flatMap((scene, sceneId) =>
+      scene.texts.map((text) => ({ sceneId, text })),
+    );
+    void Promise.all(texts.map(async ({ sceneId, text }) => {
+      const preferred = resolveFontAsset(text.font);
+      const sequence = resolveFontFallbackSequence(text.font, text.text);
+      const missingCharacters = new Set(Array.from(text.text));
+      const coveredFonts: string[] = [];
+      let preferredCovers = false;
+      for (const candidate of sequence) {
+        if (!candidate.renderable) continue;
+        try {
+          const isPreferred = candidate.id === preferred.id;
+          const candidateWeight = isPreferred ? text.fontWeight : 400;
+          const asset = isPreferred
+            ? resolveFontAsset(serverFontPath(candidate.id, candidateWeight))
+            : candidate;
+          const family = fontFamilyForEditor(candidate.id, candidateWeight);
+          await document.fonts.load(`${isPreferred ? candidateWeight : 400} 32px "${family}"`);
+          const checker = await loadBrowserFontChecker(asset.browserUrl);
+          const missing = checker(text.text);
+          coveredFonts.push(candidate.id);
+          if (isPreferred) preferredCovers = missing.length === 0;
+          for (const character of Array.from(missingCharacters)) {
+            if (!missing.includes(character.codePointAt(0) ?? 0)) missingCharacters.delete(character);
+          }
+        } catch {
+          // A missing font is excluded from the same fallback stack used by export.
+        }
+      }
+      const fontId = coveredFonts.includes(preferred.id) ? preferred.id : (coveredFonts[0] ?? null);
+      return {
+        key: fontRenderKey(sceneId, text.key),
+        choice: {
+          fontId,
+          fontIds: coveredFonts,
+          fallback: !preferredCovers,
+          error: missingCharacters.size
+            ? `No bundled font covers ${formatMissingCodePoints(Array.from(missingCharacters, (character) => character.codePointAt(0) ?? 0))}. Choose a font that supports these characters or add a suitable TTF/OTF font to the server font assets.`
+            : coveredFonts.length === 0
+              ? "No installed TTF/OTF font is available for this text. Check the font file or add a compatible font asset."
+              : undefined,
+        },
+      };
+    })).then((results) => {
+      if (current) setFontRenderChoices(Object.fromEntries(results.map(({ key, choice }) => [key, choice])));
+    });
+    return () => { current = false; };
   }, [frames]);
   const signature = JSON.stringify({
     title,
@@ -2156,6 +2310,7 @@ export default function TemplateCanvasEditor({
                     )}
                     <textarea
                       aria-label={`${text.label} text`}
+                      dir="auto"
                       placeholder={text.placeholder || text.label || "Add text"}
                       value={shownText}
                       readOnly={previewingReveal}
@@ -2174,12 +2329,12 @@ export default function TemplateCanvasEditor({
                         border: 0,
                         textAlign: align,
                         color: text.fontColor,
-                        fontFamily: `'${fontFamilyForEditor(text.font, text.fontWeight)}', sans-serif`,
+                        fontFamily: editorFontFamily(currentFrameIndex, text),
                         fontSize: `${fontSizeValue * compositionScale}px`,
                         fontWeight: 400,
                         fontSynthesis: text.italic ? "style" : "none",
                         fontStyle: text.italic ? "italic" : "normal",
-                        letterSpacing: `${(fontAsset.supportsLetterSpacing ? num(text.letterSpacing, 0, 0, 12) : 0) * compositionScale}px`,
+                        letterSpacing: `${(fontAsset.supportsLetterSpacing && supportsTextLetterSpacing(text.text) ? num(text.letterSpacing, 0, 0, 12) : 0) * compositionScale}px`,
                         lineHeight: `${Math.max(0.8, 1 + num(text.lineSpacing, 8, -10, 80) / Math.max(6, Number(text.fontSize) || 48))}`,
                         WebkitTextStroke: `${num(text.strokeWidth, 0, 0, 20) * compositionScale}px ${text.strokeColor}`,
                         textShadow: shadow,
@@ -2305,7 +2460,7 @@ export default function TemplateCanvasEditor({
                       nextSceneDuration,
                       compositionSize.width,
                     );
-                    const letterSpacing = fontAsset.supportsLetterSpacing
+                    const letterSpacing = fontAsset.supportsLetterSpacing && supportsTextLetterSpacing(text.text)
                       ? num(text.letterSpacing, 0, 0, 12)
                       : 0;
                     return (
@@ -2338,10 +2493,11 @@ export default function TemplateCanvasEditor({
                       >
                         <div
                           className="w-full whitespace-pre-wrap"
+                          dir="auto"
                           style={{
                             textAlign: align,
                             color: text.fontColor,
-                            fontFamily: `'${fontFamilyForEditor(text.font, text.fontWeight)}', sans-serif`,
+                            fontFamily: editorFontFamily(currentFrameIndex + 1, text),
                             fontSize: `${fontSizeValue * compositionScale}px`,
                             fontWeight: 400,
                             fontSynthesis: text.italic ? "style" : "none",
@@ -3004,6 +3160,11 @@ export default function TemplateCanvasEditor({
                   choose another installed font.
                 </p>
               )}
+              {fontGlyphWarning && (
+                <p role="alert" className="rounded bg-amber-50 p-2 text-[11px] text-amber-900">
+                  {fontGlyphWarning}
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => fontFileRef.current?.click()}
@@ -3116,12 +3277,12 @@ export default function TemplateCanvasEditor({
                     max="12"
                     className="mt-1 w-full rounded border px-2 py-1.5"
                     value={
-                      resolveFontAsset(selected.font).supportsLetterSpacing
+                      resolveFontAsset(selected.font).supportsLetterSpacing && supportsTextLetterSpacing(selected.text)
                         ? selected.letterSpacing
                         : "0"
                     }
                     disabled={
-                      !resolveFontAsset(selected.font).supportsLetterSpacing
+                      !resolveFontAsset(selected.font).supportsLetterSpacing || !supportsTextLetterSpacing(selected.text)
                     }
                     onChange={(event) =>
                       updateText(selected.key, {
@@ -3129,7 +3290,7 @@ export default function TemplateCanvasEditor({
                       })
                     }
                   />
-                  {!resolveFontAsset(selected.font).supportsLetterSpacing && (
+                  {(!resolveFontAsset(selected.font).supportsLetterSpacing || !supportsTextLetterSpacing(selected.text)) && (
                     <span className="mt-1 block text-[10px] text-slate-500">
                       Disabled for connected script lettering.
                     </span>

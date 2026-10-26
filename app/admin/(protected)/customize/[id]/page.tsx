@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Download,
   LoaderCircle,
   Music2,
   Play,
@@ -16,6 +15,13 @@ import {
 } from "lucide-react";
 import { mediaUrl } from "@/lib/client-api";
 import { normalizeNewlines } from "@/lib/template-config";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/component/ui/dialog";
 
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
@@ -115,7 +121,9 @@ export default function CustomizePage() {
           const libraryTracks: MusicTrack[] = frameResult.data || [];
           setMusicTracks(
             templateResult.data.musicConfigured
-              ? (templateResult.data.musicTracks || []).filter((track: MusicTrack) => track.enabled !== false)
+              ? (templateResult.data.musicTracks || []).filter(
+                  (track: MusicTrack) => track.enabled !== false,
+                )
               : libraryTracks.filter((track) => track.enabled !== false),
           );
         } else {
@@ -202,6 +210,7 @@ export default function CustomizePage() {
       setGeneratedVideo(result.video);
       setJobId(result.jobId || "");
       setShowReview(false);
+      setShowFinalPreview(true);
     } catch (err) {
       setGenerationError(
         err instanceof Error ? err.message : "Video generation failed.",
@@ -342,14 +351,20 @@ export default function CustomizePage() {
                 const value = normalizeNewlines(
                   currentValues[`text_${index}`] ?? field.text,
                 );
-                const maxLength = Math.max(1, Math.min(2000, Number(field.maxLength) || 500));
+                const maxLength = Math.max(
+                  1,
+                  Math.min(2000, Number(field.maxLength) || 500),
+                );
                 return (
                   <div key={`${currentFrame.id}-${index}`}>
                     <label
                       htmlFor={`text-${currentFrame.id}-${index}`}
                       className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
-                      {field.label || field.key || field.name || `Text field ${index + 1}`}
+                      {field.label ||
+                        field.key ||
+                        field.name ||
+                        `Text field ${index + 1}`}
                     </label>
                     <textarea
                       id={`text-${currentFrame.id}-${index}`}
@@ -365,7 +380,9 @@ export default function CustomizePage() {
                       maxLength={maxLength}
                       required={field.required === true}
                       className="w-full resize-y rounded-lg border border-gray-200 px-3 py-3 text-sm leading-6 outline-none transition focus:border-[#a86dcd] focus:ring-2 focus:ring-purple-100"
-                      placeholder={field.placeholder || "Enter invitation text..."}
+                      placeholder={
+                        field.placeholder || "Enter invitation text..."
+                      }
                     />
                     <div className="mt-1 text-right text-xs text-gray-400">
                       {value.length} / {maxLength}
@@ -434,9 +451,12 @@ export default function CustomizePage() {
 
           {generatedVideo && (
             <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 text-green-700" size={20} />
-                <div>
+              <div className="flex items-start gap-3">
+                <CheckCircle2
+                  className="mt-0.5 shrink-0 text-green-700"
+                  size={20}
+                />
+                <div className="min-w-0 flex-1">
                   <h3 className="font-semibold text-green-900">
                     Video generated successfully
                   </h3>
@@ -445,30 +465,17 @@ export default function CustomizePage() {
                       ? `Job ID: ${jobId}`
                       : "Your customized invitation is ready."}
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowFinalPreview(true)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-800"
+                  >
+                    <Play size={16} /> Watch preview
+                  </button>
+                  <p className="mt-2 text-xs text-green-800">
+                    Downloading will be available after payment is confirmed.
+                  </p>
                 </div>
-              </div>
-              <video
-                key={generatedVideo}
-                controls
-                playsInline
-                className="mt-4 max-h-[520px] w-full rounded-lg bg-black"
-                src={generatedVideo}
-              />
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowFinalPreview(true)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-                >
-                  <Play size={16} /> Open preview
-                </button>
-                <a
-                  href={generatedVideo}
-                  download
-                  className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
-                >
-                  <Download size={16} /> Download MP4
-                </a>
               </div>
             </div>
           )}
@@ -573,34 +580,49 @@ export default function CustomizePage() {
         </div>
       )}
 
-      {/* Larger generated video modal */}
-      {showFinalPreview && generatedVideo && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setShowFinalPreview(false)}
-        >
-          <div
-            className="relative w-full max-w-md rounded-xl bg-black p-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setShowFinalPreview(false)}
-              aria-label="Close video preview"
-              className="absolute -right-3 -top-3 z-10 rounded-full bg-white p-2 text-gray-800 shadow"
-            >
-              <X size={19} />
-            </button>
+      {/* Generated video preview */}
+      <Dialog
+        open={showFinalPreview && Boolean(generatedVideo)}
+        onOpenChange={setShowFinalPreview}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl p-0 sm:w-full">
+          <DialogHeader className="border-b px-5 py-4 pr-12 sm:px-6">
+            <DialogTitle>Invitation preview</DialogTitle>
+            <DialogDescription>
+              Your customized video is ready to preview. Downloading is
+              available after payment is confirmed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-black p-2 sm:p-4">
             <video
+              key={generatedVideo}
               controls
+              controlsList="nodownload"
+              disablePictureInPicture
+              disableRemotePlayback
               autoPlay
               playsInline
-              className="max-h-[85vh] w-full rounded-lg"
+              preload="metadata"
+              className="mx-auto max-h-[72vh] w-full rounded-lg bg-black object-contain"
               src={generatedVideo}
             />
           </div>
-        </div>
-      )}
+
+          <div className="flex items-center justify-between gap-3 px-5 pb-5 sm:px-6">
+            <p className="min-w-0 truncate text-xs text-muted-foreground">
+              {jobId ? `Job ID: ${jobId}` : "Preview only"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowFinalPreview(false)}
+              className="shrink-0 rounded-lg border px-4 py-2 text-sm font-medium transition hover:bg-accent"
+            >
+              Close preview
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

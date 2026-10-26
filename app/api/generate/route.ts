@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { renderInvitation } from "@/lib/video-renderer";
 import { normalizeConfigForEditor } from "@/lib/template-config";
+import { countGraphemes } from "@/lib/text-reveal";
 
 // export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
         }
         const value = rawText.replace(/\r\n?/g, "\n");
         const maxLength = Math.max(1, Math.min(2000, Math.floor(Number(field.maxLength) || 500)));
-        if (value.length > maxLength) {
+        if (countGraphemes(value) > maxLength) {
           return NextResponse.json(
             { status: "error", message: `${field.label || field.key || `Text field ${textIndex + 1}`} is limited to ${maxLength} characters.` },
             { status: 400 },

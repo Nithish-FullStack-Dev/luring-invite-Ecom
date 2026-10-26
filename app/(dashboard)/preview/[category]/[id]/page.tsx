@@ -53,6 +53,10 @@ export default function TemplatePreviewPage() {
   const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
     if (!id) return;
 
     const controller = new AbortController();
