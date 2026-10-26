@@ -301,9 +301,7 @@ export default function AdminSidebar({
           <div className="h-7 w-px shrink-0 bg-border/80" />
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-bold tracking-tight">
-              {pageTitle}
-            </h1>
+            <h3 className="truncate font-bold tracking-tight">{pageTitle}</h3>
           </div>
 
           <div className="hidden items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 lg:flex">
