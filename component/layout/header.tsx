@@ -395,7 +395,6 @@ const Header: React.FC = () => {
                   Get a Quote
                 </button>
               </motion.div>
-
             </motion.div>
           </motion.div>
         )}
