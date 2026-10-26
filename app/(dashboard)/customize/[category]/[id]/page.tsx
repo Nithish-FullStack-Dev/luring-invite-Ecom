@@ -101,6 +101,10 @@ export default function CustomizePage() {
   const [generatedVideo, setGeneratedVideo] = useState("");
   const [generationError, setGenerationError] = useState("");
   const [jobId, setJobId] = useState("");
+  const [ignoredFields, setIgnoredFields] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [validationMessage, setValidationMessage] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -222,30 +226,37 @@ export default function CustomizePage() {
     setGenerationError("");
   };
 
+  const fieldId = (frameId: string | number, textKey: string) =>
+    `${String(frameId)}:${textKey}`;
+
+  const isFieldIgnored = (frameId: string | number, textKey: string) =>
+    ignoredFields[fieldId(frameId, textKey)] === true;
+
+  const isFrameComplete = (frame: Frame) => {
+    const fields = frame.placeholderConfig?.texts || [];
+    const values = framesData[String(frame.id)] || {};
+    return fields.every((field, index) => {
+      const key = String(field.key ?? `text_${index}`);
+      return (
+        isFieldIgnored(frame.id, key) ||
+        normalizeNewlines(values[key] ?? field.text).trim().length > 0
+      );
+    });
+  };
+
+  const allFramesComplete = frames.every(isFrameComplete);
+
   const moveFrame = (direction: -1 | 1) => {
+    if (direction === 1 && currentFrame && !isFrameComplete(currentFrame)) {
+      setValidationMessage(
+        "Complete each field or check ‘Ignore this field’ before moving to the next frame.",
+      );
+      return;
+    }
+    setValidationMessage("");
     setCurrentFrameIndex((current) =>
       Math.max(0, Math.min(frames.length - 1, current + direction)),
     );
-  };
-
-  const resetCurrentFrame = () => {
-    if (!currentFrame) return;
-
-    const defaults: Record<string, string> = {};
-
-    currentFields.forEach((field, index) => {
-      defaults[String(field.key ?? `text_${index}`)] = normalizeNewlines(
-        field.text,
-      );
-    });
-
-    setFramesData((previous) => ({
-      ...previous,
-      [currentFrameKey]: defaults,
-    }));
-
-    setGeneratedVideo("");
-    setGenerationError("");
   };
 
   const generateVideo = async () => {
@@ -333,632 +344,422 @@ export default function CustomizePage() {
   }
 
   return (
-    <>
-      <Header />
+    <div className="mx-auto max-w-[1600px] px-3 py-5 sm:px-5 lg:px-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Link
+            href={`/preview/${category}/${template.id}`}
+            className="mb-2 inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#9050b7]"
+          >
+            <ArrowLeft size={16} /> Back to template
+          </Link>
+          <h1 className="page-title text-2xl font-semibold sm:text-3xl">
+            Customize: {template.title}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Edit the fields on the right. The frame preview shows artwork only.
+          </p>
+        </div>
+        <div className="rounded-lg border border-purple-100 bg-white px-4 py-3 text-right">
+          <p className="text-xs text-gray-500">Template price</p>
+          <p className="text-xl font-bold text-[#985cc0]">
+            ₹{template.price.toLocaleString("en-IN")}
+          </p>
+        </div>
+      </div>
 
-      <main className="min-h-screen bg-[#faf9fc]">
-        <div className="mx-auto w-full max-w-[1800px] px-3 py-5 sm:px-5 sm:py-7 lg:px-8">
-          <div className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <Link
-                href={`/preview/${category}/${template.id}`}
-                className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-[#985cc0]"
-              >
-                <ArrowLeft size={16} />
-                Back to template
-              </Link>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="page-title text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-                  Customize your invitation
-                </h1>
-                <Sparkles size={20} className="text-[#a86dcd]" />
-              </div>
-
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-                Personalize your invitation, choose background music, and
-                generate your video.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 rounded-2xl border border-purple-100 bg-white px-5 py-3 shadow-sm sm:min-w-[190px] sm:justify-end">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-400">
-                  Template price
-                </p>
-                <p className="mt-1 text-2xl font-bold text-[#985cc0]">
-                  ₹{template.price.toLocaleString("en-IN")}
-                </p>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-[#985cc0]">
-                <Sparkles size={22} />
-              </div>
-            </div>
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[225px_minmax(260px,440px)_minmax(360px,1fr)]">
+        {/* Frame selector */}
+        <aside className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="font-semibold">Frames</h2>
+            <span className="text-xs text-gray-500">
+              {currentFrameIndex + 1}/{frames.length}
+            </span>
           </div>
-
-          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(180px,0.65fr)_minmax(300px,1fr)] xl:grid-cols-[210px_minmax(300px,0.9fr)_minmax(390px,1.2fr)] xl:gap-5 2xl:gap-6">
-            <aside className="min-w-0 self-start rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4 xl:sticky xl:top-5">
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <div>
-                  <h2 className="font-semibold text-gray-900">Your frames</h2>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Select a scene to edit
-                  </p>
-                </div>
-                <span className="shrink-0 rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-[#985cc0]">
-                  {currentFrameIndex + 1}/{frames.length}
-                </span>
-              </div>
-
-              <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] lg:max-h-[calc(100vh-300px)] lg:min-h-0 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-y-contain lg:pr-1 lg:pb-1">
-                {frames.map((frame, index) => {
-                  const active = index === currentFrameIndex;
-
-                  return (
-                    <button
-                      key={frame.id}
-                      type="button"
-                      onClick={() => setCurrentFrameIndex(index)}
-                      aria-current={active ? "step" : undefined}
-                      className={`group w-[105px] shrink-0 rounded-xl border-2 p-1.5 text-left transition sm:w-[120px] lg:w-full ${
-                        active
-                          ? "border-[#a86dcd] bg-purple-50 shadow-sm"
-                          : "border-transparent bg-gray-50 hover:border-purple-200 hover:bg-purple-50/50"
-                      }`}
-                    >
-                      <div className="relative aspect-[9/16] overflow-hidden rounded-lg bg-gray-100">
-                        {frame.previewImage ? (
-                          <img
-                            src={mediaUrl(frame.previewImage)}
-                            alt={frame.title || `Frame ${index + 1}`}
-                            loading="lazy"
-                            className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
-                            No image
-                          </div>
-                        )}
-
-                        {active && (
-                          <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#a86dcd] text-white shadow">
-                            <CheckCircle2 size={15} />
-                          </div>
-                        )}
-                      </div>
-
-                      <p
-                        className={`truncate px-1 py-2 text-center text-sm font-medium ${
-                          active ? "text-[#985cc0]" : "text-gray-600"
-                        }`}
-                      >
-                        {frame.title || `Frame ${index + 1}`}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 hidden rounded-xl bg-gray-50 p-3 lg:block">
-                <div className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                  <Clock3 size={15} className="text-[#985cc0]" />
-                  Scene {currentFrameIndex + 1} of {frames.length}
-                </div>
-                <p className="mt-1 text-xs leading-5 text-gray-500">
-                  Scroll the frames list to find other scenes.
-                </p>
-              </div>
-            </aside>
-
-            <section className="min-w-0 self-start rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-5 xl:p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-gray-900">
-                    Artwork preview
-                  </h2>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {currentFrame?.title || `Frame ${currentFrameIndex + 1}`}
-                  </p>
-                </div>
-
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1.5 text-xs font-medium text-[#985cc0]">
-                  <Film size={14} />
-                  Artwork only
-                </span>
-              </div>
-
-              <div className="mx-auto w-full max-w-[340px]">
-                <div className="relative aspect-[9/16] w-full overflow-hidden rounded-xl bg-gray-100 shadow-md ring-1 ring-black/5">
-                  {currentFrame?.previewImage ? (
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+            {frames.map((frame, index) => (
+              <button
+                key={frame.id}
+                type="button"
+                onClick={() => setCurrentFrameIndex(index)}
+                className={`rounded-lg border-2 p-1 text-left transition ${index === currentFrameIndex ? "border-[#a86dcd] bg-purple-50" : "border-gray-100 hover:border-gray-300"}`}
+              >
+                <div className="relative aspect-[9/16] overflow-hidden rounded-md bg-gray-100">
+                  {frame.previewImage ? (
                     <img
-                      key={currentFrame.id}
-                      src={mediaUrl(currentFrame.previewImage)}
-                      alt={currentFrame.title || "Invitation frame artwork"}
+                      src={mediaUrl(frame.previewImage)}
+                      alt={frame.title || `Frame ${index + 1}`}
+                      loading="lazy"
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
-                      No preview image available
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
+                      No image
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => moveFrame(-1)}
-                  disabled={currentFrameIndex === 0}
-                  className={secondaryButtonClass}
-                >
-                  <ChevronLeft size={17} />
-                  <span className="hidden sm:inline">Previous</span>
-                </button>
-
-                <span className="text-center text-xs font-medium text-gray-500">
-                  Frame {currentFrameIndex + 1} of {frames.length}
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => moveFrame(1)}
-                  disabled={currentFrameIndex >= frames.length - 1}
-                  className={secondaryButtonClass}
-                >
-                  <span className="hidden sm:inline">Next</span>
-                  <ChevronRight size={17} />
-                </button>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-3">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles
-                    size={17}
-                    className="mt-0.5 shrink-0 text-[#985cc0]"
-                  />
-                  <p className="text-xs leading-5 text-gray-600">
-                    This preview displays the original artwork. Your custom text
-                    is applied when the final video is generated.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="min-w-0 self-start rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 xl:p-5 2xl:p-6 lg:col-span-2 xl:col-span-1">
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#985cc0]">
-                      <Sparkles size={18} />
-                    </div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Customize scene
-                    </h2>
-                  </div>
-
-                  <p className="mt-2 text-sm leading-6 text-gray-500">
-                    Edit the text for{" "}
-                    <span className="font-medium text-gray-700">
-                      {currentFrame?.title || `Frame ${currentFrameIndex + 1}`}
-                    </span>
-                    .
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  title="Reset current frame text"
-                  aria-label="Reset current frame text"
-                  onClick={resetCurrentFrame}
-                  className="shrink-0 rounded-xl border border-gray-200 p-2.5 text-gray-500 transition hover:border-purple-200 hover:bg-purple-50 hover:text-[#985cc0]"
-                >
-                  <RefreshCw size={17} />
-                </button>
-              </div>
-
-              {currentFields.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center">
-                  <Film size={25} className="mx-auto text-gray-400" />
-                  <p className="mt-3 text-sm font-medium text-gray-700">
-                    No editable text fields
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    This frame does not have any text fields configured.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {currentFields.map((field, index) => {
-                    const fieldKey = String(field.key ?? `text_${index}`);
-                    const value = normalizeNewlines(
-                      currentValues[fieldKey] ?? field.text,
-                    );
-                    const maxLength = Math.max(
-                      1,
-                      Math.min(2000, Number(field.maxLength) || 500),
-                    );
-
-                    return (
-                      <div key={`${currentFrame?.id}-${index}`}>
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <label
-                            htmlFor={`text-${currentFrame?.id}-${index}`}
-                            className="text-sm font-semibold text-gray-800"
-                          >
-                            {field.label ||
-                              field.key ||
-                              field.name ||
-                              `Text field ${index + 1}`}
-                            {field.required && (
-                              <span className="ml-1 text-red-500">*</span>
-                            )}
-                          </label>
-
-                          <span className="shrink-0 text-xs text-gray-400">
-                            {index + 1}/{currentFields.length}
-                          </span>
-                        </div>
-
-                        <textarea
-                          id={`text-${currentFrame?.id}-${index}`}
-                          value={value}
-                          onChange={(event) =>
-                            currentFrame &&
-                            updateText(
-                              currentFrame.id,
-                              fieldKey,
-                              event.target.value,
-                            )
-                          }
-                          rows={Math.min(
-                            6,
-                            Math.max(3, value.split("\n").length),
-                          )}
-                          maxLength={maxLength}
-                          required={field.required === true}
-                          className={`${inputClass} resize-y bg-gray-50/50 focus:bg-white`}
-                          placeholder={
-                            field.placeholder || "Enter invitation text..."
-                          }
-                        />
-
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <p className="text-xs text-gray-400">
-                            Line breaks are preserved.
-                          </p>
-                          <span
-                            className={`shrink-0 text-xs ${
-                              value.length >= maxLength
-                                ? "font-semibold text-red-500"
-                                : "text-gray-400"
-                            }`}
-                          >
-                            {value.length}/{maxLength}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="my-6 border-t border-gray-100" />
-
-              <div>
-                <label
-                  htmlFor="music"
-                  className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-[#985cc0]">
-                    <Music2 size={17} />
-                  </div>
-                  Background music
-                </label>
-
-                <p className="mb-3 text-xs leading-5 text-gray-500">
-                  Choose a soundtrack for your invitation video.
+                <p className="px-1 py-1.5 text-center text-sm">
+                  {frame.title || `Frame ${index + 1}`}
                 </p>
-
-                <select
-                  id="music"
-                  value={selectedMusicTrackId}
-                  onChange={(event) => {
-                    setSelectedMusicTrackId(event.target.value);
-                    setGeneratedVideo("");
-                  }}
-                  disabled={loadingMusic}
-                  className={inputClass}
-                >
-                  <option value="">
-                    {loadingMusic ? "Loading music..." : "No background music"}
-                  </option>
-
-                  {musicTracks.map((track) => (
-                    <option key={track.id} value={track.id}>
-                      {track.title}
-                    </option>
-                  ))}
-                </select>
-
-                {selectedMusic && (
-                  <div className="mt-3 flex items-center gap-3 rounded-xl bg-purple-50/70 p-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#985cc0] shadow-sm">
-                      <Music2 size={17} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-500">
-                        Selected soundtrack
-                      </p>
-                      <p className="truncate text-sm font-medium text-gray-800">
-                        {selectedMusic.title}
-                      </p>
-                    </div>
-                    <CheckCircle2
-                      size={17}
-                      className="ml-auto shrink-0 text-[#985cc0]"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setShowReview(true)}
-                  disabled={generating}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#a86dcd] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#914bb8] focus:outline-none focus:ring-4 focus:ring-purple-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Sparkles size={17} />
-                  Review & Generate Video
-                </button>
-
-                <p className="text-center text-xs leading-5 text-gray-400">
-                  Review your details before generating your invitation.
-                </p>
-              </div>
-
-              {generationError && (
-                <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                  <p className="font-semibold">Video generation failed</p>
-                  <p className="mt-1 whitespace-pre-wrap break-words leading-6">
-                    {generationError}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-red-600">
-                    Confirm the original MP4 files are under
-                    public/media/templates and FFmpeg is installed.
-                  </p>
-                </div>
-              )}
-
-              {generatedVideo && (
-                <div className="mt-6 rounded-2xl border border-green-200 bg-green-50/70 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-700">
-                      <CheckCircle2 size={21} />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-green-900">
-                        Your video is ready!
-                      </h3>
-                      <p className="mt-1 break-words text-sm text-green-800">
-                        {jobId
-                          ? `Job ID: ${jobId}`
-                          : "Your customized invitation is ready."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <video
-                    key={generatedVideo}
-                    controls
-                    playsInline
-                    className="mt-4 max-h-[520px] w-full rounded-xl bg-black"
-                    src={generatedVideo}
-                  />
-
-                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowFinalPreview(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-white px-4 py-3 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-                    >
-                      <Play size={17} />
-                      Open preview
-                    </button>
-
-                    <a
-                      href={generatedVideo}
-                      download
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-800"
-                    >
-                      <Download size={17} />
-                      Download MP4
-                    </a>
-                  </div>
-                </div>
-              )}
-            </section>
+              </button>
+            ))}
           </div>
-        </div>
-      </main>
+        </aside>
 
+        {/* Artwork preview */}
+        <section className="rounded-xl border border-gray-200 bg-white p-3 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-gray-800">Frame preview</h2>
+            <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-800">
+              Artwork only
+            </span>
+          </div>
+          <div className="relative mx-auto aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-lg bg-black shadow-sm">
+            {currentFrame.previewImage ? (
+              <img
+                src={mediaUrl(currentFrame.previewImage)}
+                alt={currentFrame.title || "Invitation frame artwork"}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-white">
+                No preview image
+              </div>
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => moveFrame(-1)}
+              disabled={currentFrameIndex === 0}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"
+            >
+              <ChevronLeft size={16} /> Previous
+            </button>
+            <span className="text-xs text-gray-500">
+              Frame {currentFrameIndex + 1} of {frames.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => moveFrame(1)}
+              disabled={currentFrameIndex >= frames.length - 1}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50"
+            >
+              Next <ChevronRight size={16} />
+            </button>
+          </div>
+        </section>
+
+        {/* Editor form */}
+        <section className="min-w-0 rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">
+                Customize:{" "}
+                {currentFrame.title || `Frame ${currentFrameIndex + 1}`}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Line breaks are preserved in your generated video.
+              </p>
+            </div>
+            <button
+              type="button"
+              title="Reset current frame text"
+              onClick={() => {
+                const defaults: Record<string, string> = {};
+                currentFields.forEach((field, index) => {
+                  defaults[String(field.key ?? `text_${index}`)] =
+                    normalizeNewlines(field.text);
+                });
+                setFramesData((previous) => ({
+                  ...previous,
+                  [currentFrameKey]: defaults,
+                }));
+                setGeneratedVideo("");
+              }}
+              className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+
+          {currentFields.length === 0 ? (
+            <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+              No editable text fields are configured for this frame.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {currentFields.map((field, index) => {
+                const fieldKey = String(field.key ?? `text_${index}`);
+                const value = normalizeNewlines(
+                  currentValues[fieldKey] ?? field.text,
+                );
+                const maxLength = Math.max(
+                  1,
+                  Math.min(2000, Number(field.maxLength) || 500),
+                );
+                return (
+                  <div key={`${currentFrame.id}-${index}`}>
+                    <label
+                      htmlFor={`text-${currentFrame.id}-${index}`}
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
+                    >
+                      {field.label ||
+                        field.key ||
+                        field.name ||
+                        `Text field ${index + 1}`}
+                    </label>
+                    <textarea
+                      id={`text-${currentFrame.id}-${index}`}
+                      value={value}
+                      onChange={(event) =>
+                        updateText(
+                          currentFrame.id,
+                          fieldKey,
+                          event.target.value,
+                        )
+                      }
+                      rows={Math.min(7, Math.max(2, value.split("\n").length))}
+                      maxLength={maxLength}
+                      required={field.required === true}
+                      className="w-full resize-y rounded-lg border border-gray-200 px-3 py-3 text-sm leading-6 outline-none transition focus:border-[#a86dcd] focus:ring-2 focus:ring-purple-100"
+                      placeholder={
+                        field.placeholder || "Enter invitation text..."
+                      }
+                    />
+                    <div className="mt-1 text-right text-xs text-gray-400">
+                      {value.length} / {maxLength}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-6 border-t border-gray-100 pt-5">
+            <label
+              htmlFor="music"
+              className="mb-2 flex items-center gap-2 font-medium text-gray-800"
+            >
+              <Music2 size={17} /> Select Background Music
+            </label>
+            <select
+              id="music"
+              value={selectedMusicTrackId}
+              onChange={(event) => setSelectedMusicTrackId(event.target.value)}
+              disabled={loadingMusic}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#a86dcd]"
+            >
+              <option value="">
+                {loadingMusic ? "Loading music..." : "No background music"}
+              </option>
+              {musicTracks.map((track) => (
+                <option key={track.id} value={track.id}>
+                  {track.title}
+                </option>
+              ))}
+            </select>
+            {selectedMusic && (
+              <p className="mt-2 truncate text-xs text-gray-500">
+                Selected: {selectedMusic.title}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowReview(true)}
+              disabled={generating}
+              className="w-full rounded-lg bg-[#a86dcd] px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-[#914bb8] disabled:opacity-60"
+            >
+              Review & Generate Video
+            </button>
+            {generationError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <p className="font-semibold">Video generation failed</p>
+                <p className="mt-1 whitespace-pre-wrap break-words">
+                  {generationError}
+                </p>
+                <p className="mt-2 text-xs">
+                  Confirm the original MP4 files are under
+                  public/media/templates and FFmpeg is installed.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {generatedVideo && (
+            <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 text-green-700" size={20} />
+                <div>
+                  <h3 className="font-semibold text-green-900">
+                    Video generated successfully
+                  </h3>
+                  <p className="mt-1 text-sm text-green-800">
+                    {jobId
+                      ? `Job ID: ${jobId}`
+                      : "Your customized invitation is ready."}
+                  </p>
+                </div>
+              </div>
+              <video
+                key={generatedVideo}
+                controls
+                playsInline
+                className="mt-4 max-h-[520px] w-full rounded-lg bg-black"
+                src={generatedVideo}
+              />
+              <div className="mt-3 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowFinalPreview(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
+                >
+                  <Play size={16} /> Open preview
+                </button>
+                <a
+                  href={generatedVideo}
+                  download
+                  className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                >
+                  <Download size={16} /> Download MP4
+                </a>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Review dialog */}
       {showReview && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/65 p-3 backdrop-blur-sm sm:p-6"
-          onClick={() => !generating && setShowReview(false)}
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/65 p-3 sm:p-6"
+          onClick={() => setShowReview(false)}
         >
           <div
-            className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6 lg:p-8"
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setShowReview(false)}
-              disabled={generating}
               aria-label="Close review"
-              className="absolute right-4 top-4 rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-100 disabled:opacity-50"
+              className="absolute right-4 top-4 rounded-full p-2 text-gray-500 hover:bg-gray-100"
             >
-              <X size={19} />
+              <X size={20} />
             </button>
-
-            <div className="pr-10">
-              <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#985cc0]">
-                  <Sparkles size={20} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-                    Review your invitation
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Check all your details before creating the video.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <h2 className="page-title pr-8 text-2xl font-semibold">
+              Review your invitation
+            </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Check the edited details before generating. Preview thumbnails
+              remain artwork-only.
+            </p>
+            <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
               {frames.map((frame) => {
                 const textFields = frame.placeholderConfig?.texts || [];
                 const values = framesData[String(frame.id)] || {};
-
                 return (
                   <div
                     key={frame.id}
-                    className="min-w-0 rounded-xl border border-gray-200 p-3 sm:p-4"
+                    className="rounded-xl border border-gray-200 p-3"
                   >
                     <div className="flex items-center gap-3">
                       {frame.previewImage && (
                         <img
                           src={mediaUrl(frame.previewImage)}
                           alt=""
-                          className="h-20 w-14 shrink-0 rounded-lg object-cover"
+                          className="h-20 w-14 rounded object-cover"
                         />
                       )}
-
-                      <div className="min-w-0">
-                        <h3 className="truncate font-semibold text-gray-900">
+                      <div>
+                        <h3 className="font-semibold">
                           {frame.title || `Frame ${frame.frameNumber}`}
                         </h3>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="text-xs text-gray-500">
                           {textFields.length} editable field
                           {textFields.length === 1 ? "" : "s"}
                         </p>
                       </div>
                     </div>
-
-                    <div className="mt-4 space-y-3">
-                      {textFields.map((field, index) => {
-                        const fieldKey = String(field.key ?? `text_${index}`);
-                        const fieldValue =
-                          values[fieldKey] ?? normalizeNewlines(field.text);
-
-                        return (
-                          <div key={`${frame.id}-${index}`} className="min-w-0">
-                            <p className="mb-1 text-xs font-semibold text-gray-500">
-                              {field.label || field.key || `Text ${index + 1}`}
-                            </p>
-                            <p className="break-words whitespace-pre-wrap text-sm leading-6 text-gray-800">
-                              {fieldValue || "No text entered"}
-                            </p>
-                          </div>
-                        );
-                      })}
+                    <div className="mt-3 space-y-2">
+                      {textFields.map((field, index) => (
+                        <div key={index}>
+                          <p className="text-xs font-medium text-gray-500">
+                            {field.label || field.key || `Text ${index + 1}`}
+                          </p>
+                          <p className="whitespace-pre-wrap break-words text-sm text-gray-800">
+                            {values[String(field.key ?? `text_${index}`)] ??
+                              field.text}
+                          </p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 );
               })}
             </div>
-
-            <div className="mt-6 flex flex-col gap-4 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-400">
-                  Background music
-                </p>
-                <p className="mt-1 truncate text-sm font-semibold text-gray-800">
+            <div className="mt-5 flex flex-col justify-between gap-4 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-sm text-gray-500">Background music</p>
+                <p className="font-medium">
                   {selectedMusic?.title || "No background music"}
                 </p>
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-gray-500">
                   Template price: ₹{template.price.toLocaleString("en-IN")}
                 </p>
               </div>
-
-              <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:min-w-[220px]">
-                <button
-                  type="button"
-                  onClick={() => void generateVideo()}
-                  disabled={generating}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#a86dcd] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#914bb8] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {generating ? (
-                    <>
-                      <LoaderCircle size={18} className="animate-spin" />
-                      Generating video...
-                    </>
-                  ) : (
-                    <>
-                      <Film size={18} />
-                      Generate Video
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowReview(false)}
-                  disabled={generating}
-                  className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
-                >
-                  Continue editing
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => void generateVideo()}
+                disabled={generating}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#a86dcd] px-5 py-3 font-semibold text-white hover:bg-[#914bb8] disabled:opacity-60"
+              >
+                {generating ? (
+                  <>
+                    <LoaderCircle className="animate-spin" size={18} />{" "}
+                    Generating...
+                  </>
+                ) : (
+                  "Generate Video"
+                )}
+              </button>
             </div>
-
-            {generationError && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <p className="font-semibold">Video generation failed</p>
-                <p className="mt-1 whitespace-pre-wrap break-words">
-                  {generationError}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       )}
 
+      {/* Larger generated video modal */}
       {showFinalPreview && generatedVideo && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-950/85 p-3 backdrop-blur-sm sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setShowFinalPreview(false)}
         >
           <div
-            className="relative w-full max-w-lg rounded-2xl bg-white p-2 shadow-2xl sm:p-3"
+            className="relative w-full max-w-md rounded-xl bg-black p-2"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setShowFinalPreview(false)}
               aria-label="Close video preview"
-              className="absolute -right-2 -top-2 z-10 rounded-full bg-white p-2.5 text-gray-800 shadow-lg transition hover:bg-gray-100"
+              className="absolute -right-3 -top-3 z-10 rounded-full bg-white p-2 text-gray-800 shadow"
             >
               <X size={19} />
             </button>
-
             <video
-              key={generatedVideo}
               controls
               autoPlay
               playsInline
-              className="max-h-[85vh] w-full rounded-xl bg-black"
+              className="max-h-[85vh] w-full rounded-lg"
               src={generatedVideo}
             />
           </div>
         </div>
       )}
-
-      <Footer />
-      <FloatingWhatsApp />
-    </>
+    </div>
   );
 }

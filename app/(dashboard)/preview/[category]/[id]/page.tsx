@@ -22,6 +22,7 @@ import { mediaUrl } from "@/lib/client-api";
 import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
+import { AnimatePresence, useReducedMotion, motion } from "framer-motion";
 
 type Template = {
   id: number;
@@ -44,7 +45,7 @@ export default function TemplatePreviewPage() {
   const params = useParams<{ category: string; id: string }>();
   const id = params?.id;
   const category = params?.category || "birthday";
-
+  const shouldReduceMotion = useReducedMotion();
   const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -394,19 +395,27 @@ export default function TemplatePreviewPage() {
                   </div>
                 </div>
               </div>
+
               {/* Customization Support Card */}
-              <div className="mt-5 overflow-hidden rounded-[22px] border border-[#ead9f5] bg-gradient-to-br from-white via-[#fdf9ff] to-[#f5eafa] p-5 shadow-[0_12px_35px_rgba(69,39,86,0.06)] sm:p-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f0e0fa] text-[#9259b7]">
-                    <Sparkles size={23} />
+              <div className="mt-5 overflow-hidden rounded-[22px] border border-[#ead9f5] bg-gradient-to-br from-white via-[#fdf9ff] to-[#f5eafa] p-4 shadow-[0_12px_35px_rgba(69,39,86,0.06)] sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+                  {/* Icon and heading */}
+                  <div className="flex min-w-0 items-center gap-3 sm:contents">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f0e0fa] text-[#9259b7]">
+                      <Sparkles size={23} />
+                    </div>
+
+                    <h3 className="min-w-0 flex-1 font-semibold text-xl  tracking-tight text-[#302438] sm:hidden">
+                      Need More Customization?
+                    </h3>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold tracking-tight text-[#302438] sm:text-lg">
+                    <h3 className="hidden font-semibold tracking-tight text-xl md:text-2xl text-[#302438] sm:block sm:text-lg">
                       Need More Customization?
                     </h3>
 
-                    <p className="mt-2 text-sm leading-6 text-[#82768b]">
+                    <p className="text-sm leading-6 text-[#82768b] sm:mt-2">
                       Want a unique design, extra details, custom animations, or
                       something special for your occasion? We’re here to help
                       you create the perfect invitation.
@@ -419,22 +428,24 @@ export default function TemplatePreviewPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Contact us on WhatsApp for custom invitation design"
-                      className="group mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[#25D366] px-5 py-3 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(37,211,102,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#20bd5a] hover:shadow-[0_10px_25px_rgba(37,211,102,0.25)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#25D366]/30 active:translate-y-0 sm:w-auto"
+                      className="group mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-sm font-semibold text-white shadow-[0_6px_18px_rgba(37,211,102,0.18)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#20bd5a] hover:shadow-[0_10px_25px_rgba(37,211,102,0.25)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#25D366]/30 active:translate-y-0 sm:mt-5 sm:w-auto sm:px-5"
                     >
-                      {/* WhatsApp icon */}
                       <svg
                         viewBox="0 0 24 24"
                         fill="currentColor"
-                        className="h-5 w-5 shrink-0 transition-transform "
+                        className="h-5 w-5 shrink-0"
                         aria-hidden="true"
                       >
                         <path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.5 0 .15 5.35.15 11.93c0 2.1.55 4.16 1.6 5.97L.05 24l6.26-1.64a11.92 11.92 0 0 0 5.76 1.47h.01c6.57 0 11.92-5.35 11.92-11.93 0-3.18-1.24-6.17-3.48-8.42ZM12.08 21.8a9.88 9.88 0 0 1-5.03-1.37l-.36-.21-3.72.98.99-3.63-.24-.37a9.86 9.86 0 0 1-1.52-5.27c0-5.45 4.44-9.89 9.9-9.89a9.82 9.82 0 0 1 7 2.9 9.83 9.83 0 0 1 2.89 7c0 5.46-4.44 9.9-9.9 9.9Zm5.43-7.41c-.3-.15-1.76-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.8-1.49-1.78-1.66-2.08-.18-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.2 5.08 4.48.71.31 1.27.5 1.7.64.72.23 1.37.2 1.88.12.58-.09 1.76-.72 2.01-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35Z" />
                       </svg>
-                      Chat with Us on WhatsApp
-                      {/* Arrow icon */}
+
+                      <span className="text-center">
+                        Chat with Us on WhatsApp
+                      </span>
+
                       <ArrowUpRight
                         size={17}
-                        className="shrink-0 transition-transform group-hover:animate-bounce group-hover:rotate-180  group-hover:scale-110"
+                        className="shrink-0 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                       />
                     </a>
 
@@ -444,6 +455,7 @@ export default function TemplatePreviewPage() {
                   </div>
                 </div>
               </div>
+
               {/* How it works */}
               <div className="mt-3">
                 <div>
@@ -481,79 +493,114 @@ export default function TemplatePreviewPage() {
           </div>
         </div>
       </main>
+      {/* Smooth left-side video preview animation */}
+      <AnimatePresence>
+        {showVideo && sampleVideo && (
+          <motion.div
+            key="video-preview-backdrop"
+            className="preview-modal fixed inset-0 z-[100] flex items-center justify-center bg-[#462958]/90 p-4 sm:p-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: shouldReduceMotion ? 0 : 0.45,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setShowVideo(false);
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${template.title} video preview`}
+          >
+            <motion.div
+              className="relative w-full max-w-[480px]"
+              initial={{
+                opacity: 0,
+                scale: shouldReduceMotion ? 1 : 0.85,
+              }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+              }}
+              exit={{
+                opacity: 0,
+                scale: shouldReduceMotion ? 1 : 0.7,
+              }}
+              transition={{
+                duration: shouldReduceMotion ? 0 : 0.4,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+            >
+              {/* Modal header */}
+              <div className="mb-4 flex items-center justify-between gap-4 text-white">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-200">
+                    Video preview
+                  </p>
 
-      {/* Video preview modal */}
-      {showVideo && sampleVideo && (
-        <div
-          className="preview-modal fixed inset-0 z-[100] flex items-center justify-center bg-[#170d1d]/85 p-4 backdrop-blur-md sm:p-8"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowVideo(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${template.title} video preview`}
-        >
-          <div className="relative w-full max-w-[480px] animate-[previewModalIn_250ms_ease-out]">
-            <div className="mb-4 flex items-center justify-between gap-4 text-white">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-200">
-                  Video preview
-                </p>
-                <h2 className="mt-1 truncate text-base font-semibold sm:text-lg">
-                  {template.title}
-                </h2>
+                  <h2 className="mt-1 truncate text-base font-semibold sm:text-lg">
+                    {template.title}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowVideo(false)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition-colors duration-200 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  aria-label="Close video preview"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowVideo(false)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:rotate-90 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                aria-label="Close video preview"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="overflow-hidden rounded-2xl border border-white/15 bg-black p-1.5 shadow-2xl sm:rounded-3xl sm:p-2">
-              {!videoFailed ? (
-                <video
-                  key={videoUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="max-h-[75vh] w-full rounded-xl bg-black sm:rounded-2xl"
-                  onError={() => setVideoFailed(true)}
-                >
-                  <source src={videoUrl} type="video/mp4" />
-                  Your browser does not support this video.
-                </video>
-              ) : (
-                <div className="flex min-h-[260px] flex-col items-center justify-center px-6 py-12 text-center text-white sm:min-h-[360px]">
-                  <Film size={38} className="text-purple-300" />
-                  <h3 className="mt-4 text-lg font-semibold">
-                    Preview unavailable
-                  </h3>
-                  <p className="mt-2 max-w-xs text-sm leading-6 text-white/60">
-                    The video could not be loaded. Please check the source MP4
-                    configured for this template.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowVideo(false)}
-                    className="mt-6 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#614071] transition hover:bg-purple-100"
+              {/* Video */}
+              <div className="w-full">
+                {!videoFailed ? (
+                  <video
+                    key={videoUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="mx-auto block max-h-[75dvh] w-auto max-w-full rounded-xl object-contain sm:max-h-[80dvh] sm:rounded-2xl"
+                    onError={() => setVideoFailed(true)}
                   >
-                    Back to invitation
-                  </button>
-                </div>
-              )}
-            </div>
+                    <source src={videoUrl} type="video/mp4" />
+                    Your browser does not support this video.
+                  </video>
+                ) : (
+                  <div className="flex min-h-[260px] flex-col items-center justify-center px-6 py-12 text-center text-white sm:min-h-[360px]">
+                    <Film size={38} className="text-purple-300" />
 
-            <p className="mt-4 text-center text-xs text-white/55">
-              Make this design your own with personalized details.
-            </p>
-          </div>
-        </div>
-      )}
+                    <h3 className="mt-4 text-lg font-semibold">
+                      Preview unavailable
+                    </h3>
+
+                    <p className="mt-2 max-w-xs text-sm leading-6 text-white/70">
+                      The video could not be loaded. Please check the source MP4
+                      configured for this template.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowVideo(false)}
+                      className="mt-6 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#614071] transition-colors hover:bg-purple-100"
+                    >
+                      Back to invitation
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <p className="mt-4 text-center text-xs text-white/55">
+                Make this design your own with personalized details.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <Footer />
       <FloatingWhatsApp />
