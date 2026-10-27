@@ -52,11 +52,11 @@ const navigation = [
     href: "/admin/dashboard",
     icon: LayoutDashboard,
   },
-  {
-    title: "Website Content",
-    href: "/admin/content",
-    icon: FileText,
-  },
+  // {
+  //   title: "Website Content",
+  //   href: "/admin/content",
+  //   icon: FileText,
+  // },
   {
     title: "Customize Templates",
     href: "/admin/customize",
