@@ -14,12 +14,14 @@ import {
   Play,
   RefreshCw,
   X,
+  LockKeyhole,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/client-api";
 import { normalizeNewlines } from "@/lib/template-config";
 import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
+import CheckoutDialog from "@/component/customize/CheckoutDialog";
 
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
@@ -84,6 +86,8 @@ export default function CustomizePage() {
     {},
   );
   const [validationMessage, setValidationMessage] = useState("");
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [paymentComplete, setPaymentComplete] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -700,13 +704,25 @@ export default function CustomizePage() {
                   >
                     <Play size={16} /> Open preview
                   </button>
-                  <a
-                    href={generatedVideo}
-                    download
-                    className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
-                  >
-                    <Download size={16} /> Download MP4
-                  </a>
+                  {paymentComplete ? (
+                    <a
+                      href={generatedVideo}
+                      download="luring-invitation.mp4"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800"
+                    >
+                      <Download size={17} />
+                      Download MP4
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowCheckout(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#985cc0] px-4 py-3 text-sm font-semibold text-white hover:bg-[#8147a8]"
+                    >
+                      <LockKeyhole size={17} />
+                      Unlock Download
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -847,6 +863,16 @@ export default function CustomizePage() {
           </div>
         )}
       </div>
+      <CheckoutDialog
+        open={showCheckout && Boolean(generatedVideo)}
+        title={template?.title ?? "Invitation Video"}
+        price={Number(template?.price ?? 0)}
+        onClose={() => setShowCheckout(false)}
+        onPaymentSuccess={() => {
+          setPaymentComplete(true);
+          setShowCheckout(false);
+        }}
+      />
       <Footer />
       <FloatingWhatsApp />
     </>
