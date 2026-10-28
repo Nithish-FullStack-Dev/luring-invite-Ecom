@@ -9,10 +9,10 @@ import {
   Check,
   Film,
   Heart,
-  LoaderCircle,
   PencilLine,
   Play,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   Star,
   X,
@@ -22,6 +22,9 @@ import { mediaUrl } from "@/lib/client-api";
 import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
+import EmailAuthDialog from "@/component/customize/EmailAuthDialog";
+import { useCart } from "@/component/cart/CartProvider";
+import { toast } from "sonner";
 
 type Template = {
   id: number;
@@ -50,6 +53,16 @@ export default function TemplatePreviewPage() {
   const [error, setError] = useState("");
   const [showVideo, setShowVideo] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(false);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const {
+    cartItems,
+    initialized: cartInitialized,
+    refreshCart,
+    refreshSessionAndCart,
+    addItem,
+  } = useCart();
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
@@ -94,6 +107,13 @@ export default function TemplatePreviewPage() {
 
     return () => controller.abort();
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !cartInitialized) return;
+    void refreshCart().catch((refreshError: unknown) => {
+      console.error("Unable to refresh cart on template page:", refreshError);
+    });
+  }, [cartInitialized, id, refreshCart]);
 
   // Close the video modal with the Escape key.
   useEffect(() => {
@@ -158,7 +178,7 @@ export default function TemplatePreviewPage() {
 
             <p className="mt-3 break-words text-sm leading-6 text-gray-500">
               {error ||
-                "We couldn't find this invitation. Please try another design."}
+                "We couldn&apos;t find this invitation. Please try another design."}
             </p>
 
             <Link
@@ -175,6 +195,54 @@ export default function TemplatePreviewPage() {
       </>
     );
   }
+
+  const persistTemplateToCart = async () => {
+    if (!template) return;
+
+    setIsAddingToCart(true);
+    try {
+      await addItem({
+        templateId: template.id,
+        title: template.title,
+        price: Number(template.price),
+        thumbnail: template.thumbnail ?? null,
+        category,
+      });
+      toast.success("Template added to your cart.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to add this template.",
+      );
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (!cartInitialized) return;
+
+    setIsCheckingSession(true);
+    try {
+      const currentUser = await refreshSessionAndCart();
+      if (currentUser) {
+        await persistTemplateToCart();
+      } else {
+        setShowAuthDialog(true);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to validate your sign-in session.",
+      );
+    } finally {
+      setIsCheckingSession(false);
+    }
+  };
+
+  const isAddedToCart = cartItems.some(
+    (item) => item.templateId === template.id,
+  );
 
   return (
     <>
@@ -363,6 +431,35 @@ export default function TemplatePreviewPage() {
                     />
                   </Link>
 
+                  <button
+                    type="button"
+                    onClick={() => void handleAddToCart()}
+                    disabled={
+                      !cartInitialized ||
+                      isCheckingSession ||
+                      isAddingToCart ||
+                      isAddedToCart
+                    }
+                    className="mt-3 flex min-h-[54px] w-full items-center justify-center gap-2.5 rounded-xl border border-[#d9b9eb] bg-white px-5 py-3.5 text-sm font-semibold text-[#9259b7] shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#a86dcd] hover:bg-[#faf5ff] hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#a86dcd]/20 disabled:cursor-default disabled:opacity-80"
+                  >
+                    {isAddedToCart ? (
+                      <>
+                        <Check size={19} />
+                        Added to Cart
+                      </>
+                    ) : !cartInitialized ? (
+                      "Checking your session..."
+                    ) : isCheckingSession ? (
+                      "Validating your session..."
+                    ) : isAddingToCart ? (
+                      "Adding..."
+                    ) : (
+                      <>
+                        <ShoppingCart size={19} />
+                        Add to Cart
+                      </>
+                    )}
+                  </button>
                   <div className="mt-5 grid grid-cols-1 gap-3 border-t border-[#f0e9f4] pt-5 sm:grid-cols-2">
                     <div className="flex items-start gap-2.5">
                       <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f5eafa] text-[#9259b7]">
@@ -439,7 +536,7 @@ export default function TemplatePreviewPage() {
                     </a>
 
                     <p className="mt-3 text-xs leading-5 text-[#9a8ba4]">
-                      Tell us your ideas, and we’ll help you bring them to life.
+                      Tell us your ideas, and we will help you bring them to life.
                     </p>
                   </div>
                 </div>
@@ -457,7 +554,7 @@ export default function TemplatePreviewPage() {
 
                 <ul className="mt-3 space-y-3 text-sm leading-6 text-gray-600">
                   <li>
-                    1. Edit each frame's text, names, dates and invitation
+                    1. Edit each frame&apos;s text, names, dates and invitation
                     details.
                   </li>
                   <li>
@@ -554,6 +651,18 @@ export default function TemplatePreviewPage() {
           </div>
         </div>
       )}
+
+      <EmailAuthDialog
+        open={showAuthDialog}
+        templateTitle={template.title}
+        onClose={() => setShowAuthDialog(false)}
+        onContinueWithoutLogin={() => {
+          return persistTemplateToCart();
+        }}
+        onAuthenticated={() => {
+          return refreshCart().then(persistTemplateToCart);
+        }}
+      />
 
       <Footer />
       <FloatingWhatsApp />

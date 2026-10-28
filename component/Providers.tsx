@@ -11,6 +11,7 @@ import { TooltipProvider } from "./ui/tooltip";
 import { Toaster } from "./ui/toaster";
 import { Toaster as Sonner } from "./ui/sonner";
 import { SiteProtection } from "./SiteProtection";
+import { CartProvider } from "./cart/CartProvider";
 
 type ProvidersProps = {
   children: React.ReactNode;
@@ -25,7 +26,7 @@ function RouteAwareProviders({ children }: ProvidersProps) {
       {!isAdmin && <InviteLoader />}
       <Toaster />
       <Sonner />
-      {children}
+      {isAdmin ? children : <CartProvider>{children}</CartProvider>}
     </LoaderProvider>
   );
 }
@@ -48,7 +49,6 @@ export default function Providers({ children }: ProvidersProps) {
       <TooltipProvider>
         <Suspense fallback={null}>
           <RouteAwareProviders>
-            {/* <SiteProtection /> */}
             {children}
           </RouteAwareProviders>
         </Suspense>
