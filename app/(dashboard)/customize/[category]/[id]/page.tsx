@@ -15,6 +15,7 @@ import {
   RefreshCw,
   X,
   LockKeyhole,
+  PlayCircle,
 } from "lucide-react";
 import { mediaUrl } from "@/lib/client-api";
 import { normalizeNewlines } from "@/lib/template-config";
@@ -22,6 +23,7 @@ import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 import CheckoutDialog from "@/component/customize/CheckoutDialog";
+import VideoPreviewDialog from "@/component/customize/VideoPreviewDialog";
 
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
@@ -88,6 +90,7 @@ export default function CustomizePage() {
   const [validationMessage, setValidationMessage] = useState("");
   const [showCheckout, setShowCheckout] = useState(false);
   const [paymentComplete, setPaymentComplete] = useState(false);
+  const [videoPreviewOpen, setVideoPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -675,55 +678,35 @@ export default function CustomizePage() {
             )}
 
             {generatedVideo && (
-              <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 text-green-700" size={20} />
-                  <div>
-                    <h3 className="font-semibold text-green-900">
-                      Video generated successfully
-                    </h3>
-                    <p className="mt-1 text-sm text-green-800">
-                      {jobId
-                        ? `Job ID: ${jobId}`
-                        : "Your customized invitation is ready."}
-                    </p>
-                  </div>
-                </div>
-                <video
-                  key={generatedVideo}
-                  controls
-                  playsInline
-                  className="mt-4 max-h-[520px] w-full rounded-lg bg-black"
-                  src={generatedVideo}
+              <div className="mt-5 space-y-3">
+                {/* Reopen generated video preview */}
+                <button
+                  type="button"
+                  onClick={() => setVideoPreviewOpen(true)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#985cc0] bg-white px-5 py-3 font-semibold text-[#985cc0] transition hover:bg-purple-50"
+                >
+                  <PlayCircle size={20} />
+                  View Generated Video
+                </button>
+
+                {/* Open checkout to purchase the video */}
+                <button
+                  type="button"
+                  onClick={() => setShowCheckout(true)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#985cc0] px-5 py-3 font-semibold text-white shadow-lg shadow-purple-200 transition hover:bg-[#8147a8]"
+                >
+                  <LockKeyhole size={18} />
+                  Buy & Download — ₹
+                  {Number(template?.price ?? 0).toLocaleString("en-IN")}
+                </button>
+
+                {/* Video preview popup */}
+                <VideoPreviewDialog
+                  open={videoPreviewOpen}
+                  videoUrl={generatedVideo}
+                  title={template?.title ?? "Invitation Video"}
+                  onClose={() => setVideoPreviewOpen(false)}
                 />
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowFinalPreview(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-100"
-                  >
-                    <Play size={16} /> Open preview
-                  </button>
-                  {paymentComplete ? (
-                    <a
-                      href={generatedVideo}
-                      download="luring-invitation.mp4"
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800"
-                    >
-                      <Download size={17} />
-                      Download MP4
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowCheckout(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#985cc0] px-4 py-3 text-sm font-semibold text-white hover:bg-[#8147a8]"
-                    >
-                      <LockKeyhole size={17} />
-                      Unlock Download
-                    </button>
-                  )}
-                </div>
               </div>
             )}
           </section>

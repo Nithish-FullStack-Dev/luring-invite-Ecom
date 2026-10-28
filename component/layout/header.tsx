@@ -3,10 +3,12 @@
 import { usePublicContent } from "@/component/cms/PublicContentProvider";
 import { defaults } from "@/data/cms";
 import React, { useEffect, useRef, useState } from "react";
-import { Menu, X, Phone, Mail } from "lucide-react";
+import { Menu, X, Phone, Mail, ShoppingCart } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useLoader } from "@/lib/loader-context";
+import CartSheet from "../customize/CartSheet";
+import { useCart } from "../cart/CartProvider";
 
 const topMessages: string[] = [
   "Customizable magnets tailored to your occasion",
@@ -41,6 +43,8 @@ const Header: React.FC = () => {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null); // ✅ NEW
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const { cartItems, initialized: cartInitialized } = useCart();
 
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
   const [quoteData, setQuoteData] = useState({
@@ -127,6 +131,8 @@ const Header: React.FC = () => {
     // small delay ensures menu unmount doesn't block modal on some mobiles
     setTimeout(() => setIsQuoteOpen(true), 0);
   };
+
+  const cartCount = cartItems.length;
 
   return (
     <>
@@ -282,6 +288,21 @@ const Header: React.FC = () => {
                 </button>
               </nav>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCartOpen(true);
+                }}
+                aria-label="Open shopping cart"
+                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-800 transition hover:bg-purple-50 hover:text-[#A86DCD]"
+              >
+                <ShoppingCart className="h-6 w-6" />
+
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#A86DCD] text-xs font-bold text-white">
+                  {cartInitialized ? cartCount : "…"}
+                </span>
+              </button>
+
               {/* ✅ Mobile Toggle (Menu <-> Close) */}
               <button
                 onClick={() => setIsMobileMenuOpen((prev) => !prev)}
@@ -298,6 +319,12 @@ const Header: React.FC = () => {
           </div>
         </header>
       </div>
+
+      <CartSheet
+        cartItems={cartItems}
+        isCartOpen={isCartOpen}
+        setIsCartOpen={setIsCartOpen}
+      />
 
       {/* ================= ANIMATED MOBILE MENU ================= */}
       <AnimatePresence>
