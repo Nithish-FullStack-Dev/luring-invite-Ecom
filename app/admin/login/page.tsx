@@ -52,7 +52,7 @@ export default function LoginPage() {
         </div>
 
         <p className="relative z-10 text-xs text-[#93839b]">
-          © {new Date().getFullYear()} Luring Invite
+          © 2026 Luring Invite
         </p>
       </aside>
 
@@ -104,7 +104,7 @@ export default function LoginPage() {
         </div>
 
         <footer className="border-t border-[#f0eaf3] py-5 text-center text-xs text-[#a095a8]">
-          © {new Date().getFullYear()} Luring Invite. All rights reserved.
+          © 2026 Luring Invite. All rights reserved.
         </footer>
       </section>
     </main>
