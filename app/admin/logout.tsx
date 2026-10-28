@@ -22,7 +22,7 @@ export default function Logout({ all = false }: { all?: boolean }) {
         }
       }}
     >
-      <button disabled={pending}>
+      <button disabled={pending} className="p-2 ">
         {pending ? "Logging out…" : all ? "Log out all devices" : "Log out"}
       </button>
       {error && (
