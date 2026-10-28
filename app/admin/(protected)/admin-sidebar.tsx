@@ -12,6 +12,9 @@ import {
   ChevronDown,
   LogOut,
   ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
+  CreditCard,
 } from "lucide-react";
 
 import Logout from "../logout";
@@ -52,15 +55,31 @@ const navigation = [
     href: "/admin/dashboard",
     icon: LayoutDashboard,
   },
-  // {
-  //   title: "Website Content",
-  //   href: "/admin/content",
-  //   icon: FileText,
-  // },
   {
     title: "Customize Templates",
     href: "/admin/customize",
     icon: Sparkles,
+  },
+
+  {
+    title: "Clients",
+    href: "/admin/clients",
+    icon: UserRound,
+  },
+  {
+    title: "Orders",
+    href: "/admin/orders",
+    icon: ShoppingBag,
+  },
+  {
+    title: "Abandoned Carts",
+    href: "/admin/abandoned-carts",
+    icon: ShoppingCart,
+  },
+  {
+    title: "Abandoned Checkouts",
+    href: "/admin/abandoned-checkouts",
+    icon: CreditCard,
   },
 ];
 

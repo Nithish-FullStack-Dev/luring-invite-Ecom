@@ -63,8 +63,6 @@ export default function LoginForm() {
         </label>
 
         <div className="relative">
-     
-
           <input
             id="email"
             name="email"
@@ -89,8 +87,6 @@ export default function LoginForm() {
         </label>
 
         <div className="relative">
-         
-
           <input
             id="password"
             name="password"
@@ -139,7 +135,7 @@ export default function LoginForm() {
           </>
         ) : (
           <>
-            Sign in to dashboard
+            Sign in
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
           </>
         )}
