@@ -1,6 +1,8 @@
 import EditCustomize from "@/component/customize/edit-customize";
 import { Card, CardHeader } from "@/component/ui/card";
 
+export const instant = false;
+
 type PageProps = {
   params: Promise<{ id: number }>;
 };

@@ -46,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("font-sans", ysabeau.variable)}>
+    <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", ysabeau.variable)}>
       <body className="min-h-screen antialiased font-sans">
         <Providers>{children}</Providers>
       </body>

@@ -34,7 +34,7 @@ export default function AddCustomize() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
-  const price = "0";
+  const [price, setPrice] = useState("299");
   const [thumbnail, setThumbnail] = useState("");
   const [previewVideo, setPreviewVideo] = useState("");
   const [sourceVideo, setSourceVideo] = useState("");
@@ -157,6 +157,7 @@ export default function AddCustomize() {
       title={title}
       slug={slug}
       description={description}
+      price={price}
       categorySlug={categorySlug ?? ""}
       thumbnail={thumbnail}
       previewVideo={previewVideo}
@@ -172,6 +173,7 @@ export default function AddCustomize() {
         if (patch.title !== undefined) setTitle(patch.title);
         if (patch.slug !== undefined) setSlug(patch.slug);
         if (patch.description !== undefined) setDescription(patch.description);
+        if (patch.price !== undefined) setPrice(patch.price);
         if (patch.categorySlug !== undefined) setCategorySlug(patch.categorySlug);
         if (patch.thumbnail !== undefined) setThumbnail(patch.thumbnail);
         if (patch.previewVideo !== undefined) setPreviewVideo(patch.previewVideo);

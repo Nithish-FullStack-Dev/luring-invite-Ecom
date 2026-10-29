@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -22,7 +22,6 @@ import { normalizeNewlines } from "@/lib/template-config";
 import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
-import CheckoutDialog from "@/component/customize/CheckoutDialog";
 import VideoPreviewDialog from "@/component/customize/VideoPreviewDialog";
 
 type Category = { id: string; name: string; slug: string };
@@ -66,6 +65,7 @@ type FramesData = Record<string, Record<string, string>>;
 
 export default function CustomizePage() {
   const params = useParams<{ category: string; id: string }>();
+  const router = useRouter();
   const id = params?.id;
   const category = params?.category || "birthday";
 
@@ -88,8 +88,6 @@ export default function CustomizePage() {
     {},
   );
   const [validationMessage, setValidationMessage] = useState("");
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [paymentComplete, setPaymentComplete] = useState(false);
   const [videoPreviewOpen, setVideoPreviewOpen] = useState(false);
 
   useEffect(() => {
@@ -692,7 +690,8 @@ export default function CustomizePage() {
                 {/* Open checkout to purchase the video */}
                 <button
                   type="button"
-                  onClick={() => setShowCheckout(true)}
+                  onClick={() => router.push(`/checkout?videoJobId=${encodeURIComponent(jobId)}`)}
+                  disabled={!jobId}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#985cc0] px-5 py-3 font-semibold text-white shadow-lg shadow-purple-200 transition hover:bg-[#8147a8]"
                 >
                   <LockKeyhole size={18} />
@@ -846,16 +845,6 @@ export default function CustomizePage() {
           </div>
         )}
       </div>
-      <CheckoutDialog
-        open={showCheckout && Boolean(generatedVideo)}
-        title={template?.title ?? "Invitation Video"}
-        price={Number(template?.price ?? 0)}
-        onClose={() => setShowCheckout(false)}
-        onPaymentSuccess={() => {
-          setPaymentComplete(true);
-          setShowCheckout(false);
-        }}
-      />
       <Footer />
       <FloatingWhatsApp />
     </>
