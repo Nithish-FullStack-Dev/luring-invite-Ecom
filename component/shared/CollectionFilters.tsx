@@ -23,10 +23,12 @@ export interface FilterState {
   style: string[];
   deliveryTime: string[];
   budget: string;
+  minPrice: string;
+  maxPrice: string;
   language: string[];
-  religion: string[]; // New
-  region: string[]; // New
-  subOccasion: string; // Changed to single string for dropdown
+  religion: string[];
+  region: string[];
+  subOccasion: string;
   sortBy: string;
 }
 
@@ -79,8 +81,17 @@ const sortOptions: FilterOption[] = [
   { value: "trending", label: "Trending" },
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
+  { value: "price-low", label: "Price: Low to High" },
+  { value: "price-high", label: "Price: High to Low" },
 ];
-
+const priceRanges = [
+  { label: "₹0 – ₹100", min: "0", max: "100" },
+  { label: "₹100 – ₹250", min: "100", max: "250" },
+  { label: "₹250 – ₹500", min: "250", max: "500" },
+  { label: "₹500 – ₹750", min: "500", max: "750" },
+  { label: "₹750 – ₹1,000", min: "750", max: "1000" },
+  { label: "₹1,000 – ₹1,250", min: "1000", max: "2500" },
+];
 export default function CollectionFilters({
   onFilterChange,
   currentFilters,
@@ -88,6 +99,7 @@ export default function CollectionFilters({
 }: CollectionFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [isPriceOpen, setIsPriceOpen] = useState(false);
 
   // Dynamic subOccasion options based on collectionSlug
   let subOccasionOptions: FilterOption[] = [];
@@ -159,7 +171,23 @@ export default function CollectionFilters({
   const setSort = (value: string) => {
     onFilterChange({ ...currentFilters, sortBy: value });
   };
+  const setPriceRange = (field: "minPrice" | "maxPrice", value: string) => {
+    onFilterChange({
+      ...currentFilters,
+      [field]: value,
+      budget: "",
+    });
+  };
+  const applyPriceRange = (min: string, max: string) => {
+    onFilterChange({
+      ...currentFilters,
+      budget: "",
+      minPrice: min,
+      maxPrice: max,
+    });
 
+    setIsPriceOpen(false);
+  };
   const setSubOccasion = (value: string) => {
     onFilterChange({ ...currentFilters, subOccasion: value });
   };
@@ -169,6 +197,8 @@ export default function CollectionFilters({
       style: [],
       deliveryTime: [],
       budget: "",
+      minPrice: "",
+      maxPrice: "",
       language: [],
       religion: [],
       region: [],
@@ -180,11 +210,13 @@ export default function CollectionFilters({
   const hasFilters =
     currentFilters.style.length > 0 ||
     currentFilters.deliveryTime.length > 0 ||
-    currentFilters.budget ||
+    currentFilters.budget !== "" ||
+    currentFilters.minPrice !== "" ||
+    currentFilters.maxPrice !== "" ||
     currentFilters.language.length > 0 ||
     currentFilters.religion.length > 0 ||
     currentFilters.region.length > 0 ||
-    currentFilters.subOccasion;
+    currentFilters.subOccasion !== "";
 
   const FilterSection = ({
     title,
@@ -288,6 +320,137 @@ export default function CollectionFilters({
             </option>
           ))}
         </select>
+
+        {/* Price Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsPriceOpen((open) => !open)}
+            aria-expanded={isPriceOpen}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors",
+              currentFilters.minPrice !== "" || currentFilters.maxPrice !== ""
+                ? "border-primary bg-primary/5 text-primary"
+                : "border-border bg-card hover:bg-muted",
+            )}
+          >
+            Price
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform",
+                isPriceOpen && "rotate-180",
+              )}
+            />
+          </button>
+
+          {isPriceOpen && (
+            <div className="absolute left-0 top-full z-50 mt-2 w-[min(92vw,440px)] rounded-xl border border-border bg-card p-4 shadow-xl">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold">Price Range</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Click a price range to apply
+                </p>
+              </div>
+
+              <div className="overflow-hidden rounded-md border border-border">
+                {priceRanges.map((range) => {
+                  const selected =
+                    currentFilters.minPrice === range.min &&
+                    currentFilters.maxPrice === range.max;
+
+                  return (
+                    <button
+                      key={range.label}
+                      type="button"
+                      onClick={() => applyPriceRange(range.min, range.max)}
+                      className={cn(
+                        "w-full border-b border-border px-3 py-3 text-left text-sm last:border-b-0 hover:bg-muted",
+                        selected && "bg-primary/10 font-medium text-primary",
+                      )}
+                    >
+                      {range.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 border-t border-border pt-4">
+                <h4 className="mb-3 text-sm font-medium">Custom Price</h4>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs text-muted-foreground">
+                    From
+                    <div className="mt-1 flex items-center rounded-md border border-border px-3">
+                      <span className="mr-2">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="From"
+                        value={currentFilters.minPrice}
+                        onChange={(e) =>
+                          setPriceRange("minPrice", e.target.value)
+                        }
+                        className="w-full min-w-0 bg-transparent py-2 text-sm text-foreground outline-none"
+                      />
+                    </div>
+                  </label>
+
+                  <label className="text-xs text-muted-foreground">
+                    To
+                    <div className="mt-1 flex items-center rounded-md border border-border px-3">
+                      <span className="mr-2">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="To"
+                        value={currentFilters.maxPrice}
+                        onChange={(e) =>
+                          setPriceRange("maxPrice", e.target.value)
+                        }
+                        className="w-full min-w-0 bg-transparent py-2 text-sm text-foreground outline-none"
+                      />
+                    </div>
+                  </label>
+                </div>
+
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Enter both values to apply your custom price range.
+                </p>
+
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onFilterChange({
+                        ...currentFilters,
+                        minPrice: "",
+                        maxPrice: "",
+                        budget: "",
+                      });
+                    }}
+                    className="rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    Clear
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPriceOpen(false)}
+                    disabled={
+                      currentFilters.minPrice !== "" &&
+                      currentFilters.maxPrice !== "" &&
+                      Number(currentFilters.minPrice) >
+                        Number(currentFilters.maxPrice)
+                    }
+                    className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filter Panel */}
