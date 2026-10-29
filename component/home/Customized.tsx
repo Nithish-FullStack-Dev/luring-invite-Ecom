@@ -85,9 +85,8 @@ function TemplateCard({ template }: { template: Template }) {
             <span className="text-lg font-bold text-[#925bb4] ">
               ₹{Number(template.price).toLocaleString("en-IN")}
             </span>
-            <span className="text-sm text-[#a399ad] sm:text-xs">
-              {template.frames.length}{" "}
-              {template.frames.length === 1 ? "frame" : "frames"}
+            <span className="text-sm text-[#a399ad]">
+              {String(template.durationSeconds % 60).padStart(2, "0")} secs
             </span>
           </div>
         </div>

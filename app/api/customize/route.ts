@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { serializeTemplate } from "@/lib/serializers";
 import { templateAdminFailure } from "@/lib/template-api-auth";
+import { templateCategoryFilterSlugs } from "@/lib/template-categories";
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,15 @@ export async function GET(request: NextRequest) {
       where: {
         ...(manage ? {} : { active: true }),
         ...(category && category !== "all"
-          ? { categories: { some: { category: { slug: category } } } }
+          ? {
+              categories: {
+                some: {
+                  category: {
+                    slug: { in: templateCategoryFilterSlugs(category) },
+                  },
+                },
+              },
+            }
           : {}),
         ...(search
           ? {
