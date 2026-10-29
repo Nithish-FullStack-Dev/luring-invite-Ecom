@@ -49,7 +49,8 @@ model Template {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
-  cartItem CartItem[]
+  cartItem   CartItem[]
+  orderItems OrderItem[]
 
   @@index([active, createdAt])
 }
@@ -182,16 +183,100 @@ model UserSession {
   @@index([expiresAt])
 }
 
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum CheckoutStatus {
+  STARTED
+  PENDING
+  COMPLETED
+  ABANDONED
+}
+
 model CartUser {
   id        String   @id @default(cuid())
   email     String   @unique
+  name      String?
+  phone     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  carts    Cart[]
-  sessions UserSession[]
+  carts            Cart[]
+  sessions         UserSession[]
+  orders           Order[]
+  checkoutSessions CheckoutSession[]
 
   @@index([createdAt])
+}
+
+model Order {
+  id            String             @id @default(cuid())
+  orderNumber   String             @unique @default(cuid())
+  userId        String?
+  cartId        String?
+  customerEmail String
+  customerName  String?
+  customerPhone String?
+  status        OrderStatus        @default(PENDING)
+  paymentStatus OrderPaymentStatus @default(PENDING)
+  total         Decimal            @db.Decimal(10, 2)
+  items         OrderItem[]
+  user          CartUser?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  cart          Cart?              @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([cartId])
+  @@index([customerEmail])
+  @@index([paymentStatus, createdAt])
+  @@index([status, createdAt])
+}
+
+model CheckoutSession {
+  id             String         @id @default(cuid())
+  cartId         String?
+  userId         String?
+  guestId        String?
+  customerEmail  String?
+  status         CheckoutStatus @default(STARTED)
+  lastActivityAt DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  cart Cart?     @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  user CartUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, lastActivityAt])
+  @@index([userId, createdAt])
+  @@index([cartId])
+  @@index([guestId])
+  @@index([customerEmail])
+}
+
+model OrderItem {
+  id            String    @id @default(cuid())
+  orderId       String
+  templateId    Int?
+  templateTitle String
+  quantity      Int       @default(1)
+  unitPrice     Decimal   @db.Decimal(10, 2)
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  template      Template? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([templateId])
 }
 
 model Cart {
@@ -204,8 +289,10 @@ model Cart {
 
   items CartItem[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  orders           Order[]
+  checkoutSessions CheckoutSession[]
 
   @@index([userId, updatedAt])
 }
