@@ -193,6 +193,7 @@ export default function EditCustomize({ id }: { id: number }) {
       title={title}
       slug={slug}
       description={description}
+      price={price}
       categorySlug={categorySlug ?? ""}
       thumbnail={thumbnail}
       previewVideo={previewVideo}
@@ -208,6 +209,7 @@ export default function EditCustomize({ id }: { id: number }) {
         if (patch.title !== undefined) setTitle(patch.title);
         if (patch.slug !== undefined) setSlug(patch.slug);
         if (patch.description !== undefined) setDescription(patch.description);
+        if (patch.price !== undefined) setPrice(patch.price);
         if (patch.categorySlug !== undefined) setCategorySlug(patch.categorySlug);
         if (patch.thumbnail !== undefined) setThumbnail(patch.thumbnail);
         if (patch.previewVideo !== undefined) setPreviewVideo(patch.previewVideo);

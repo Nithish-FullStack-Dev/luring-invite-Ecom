@@ -61,6 +61,7 @@ type Props = {
   title: string;
   slug: string;
   description: string;
+  price: string;
   categorySlug: string;
   thumbnail: string;
   previewVideo: string;
@@ -94,6 +95,7 @@ type StudioDetails = {
   title: string;
   slug: string;
   description: string;
+  price: string;
   categorySlug: string | null;
   thumbnail: string;
   previewVideo: string;
@@ -566,6 +568,7 @@ export default function TemplateCanvasEditor({
   title,
   slug,
   description,
+  price,
   categorySlug,
   thumbnail,
   previewVideo,
@@ -851,6 +854,7 @@ export default function TemplateCanvasEditor({
     title,
     slug,
     description,
+    price,
     thumbnail,
     previewVideo,
     sourceVideo,
@@ -1605,6 +1609,24 @@ export default function TemplateCanvasEditor({
               className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"
               placeholder="auto from title"
             />
+          </label>
+          <label className="text-xs font-medium text-slate-700">
+            Price (₹)
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              inputMode="decimal"
+              value={price}
+              onChange={(event) =>
+                onDetailsChange({ price: event.target.value })
+              }
+              className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"
+              aria-describedby="template-price-help"
+            />
+            <span id="template-price-help" className="mt-1 block text-[11px] font-normal text-slate-500">
+              Set ₹1.00 for Razorpay test payments.
+            </span>
           </label>
           <label className="flex items-center gap-2 pt-5 text-sm">
             <input
