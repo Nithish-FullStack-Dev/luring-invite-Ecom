@@ -63,14 +63,8 @@ const CartSheet = ({
   isCartOpen: boolean;
   setIsCartOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
-  const {
-    user,
-    initialized,
-    cartError,
-    refreshCart,
-    removeItem,
-    logout,
-  } = useCart();
+  const { user, initialized, cartError, refreshCart, removeItem, logout } =
+    useCart();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [busyTemplateId, setBusyTemplateId] = useState<number | null>(null);
@@ -94,7 +88,9 @@ const CartSheet = ({
       toast.success("Template removed from your cart.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Unable to remove the template.",
+        error instanceof Error
+          ? error.message
+          : "Unable to remove the template.",
       );
     } finally {
       setBusyTemplateId(null);
@@ -108,7 +104,9 @@ const CartSheet = ({
       setIsCartOpen(false);
       toast.success("You have been signed out.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to sign out.");
+      toast.error(
+        error instanceof Error ? error.message : "Unable to sign out.",
+      );
     } finally {
       setIsLoggingOut(false);
     }
@@ -119,7 +117,7 @@ const CartSheet = ({
       <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
         <SheetContent className="flex w-full flex-col sm:max-w-md">
           <SheetHeader>
-            <SheetTitle className="text-xl text-[#A86DCD]">
+            <SheetTitle className="text-xl text-black">
               My Shopping Cart ({cartItems.length})
             </SheetTitle>
             <SheetDescription>
@@ -131,7 +129,9 @@ const CartSheet = ({
             {cartItems.length === 0 && !initialized ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <LoaderCircle className="mb-4 h-10 w-10 animate-spin text-[#A86DCD]" />
-                <p className="font-semibold text-gray-800">Loading your cart...</p>
+                <p className="font-semibold text-gray-800">
+                  Loading your cart...
+                </p>
               </div>
             ) : cartItems.length === 0 && cartError ? (
               <div
@@ -143,7 +143,9 @@ const CartSheet = ({
             ) : cartItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <ShoppingBag className="mb-4 h-12 w-12 text-gray-300" />
-                <p className="font-semibold text-gray-800">Your cart is empty</p>
+                <p className="font-semibold text-gray-800">
+                  Your cart is empty
+                </p>
                 <p className="mt-1 text-sm text-gray-500">
                   Add an invitation template to get started.
                 </p>
@@ -152,51 +154,65 @@ const CartSheet = ({
               cartItems.map((item) => (
                 <div
                   key={item.templateId}
-                  className="flex gap-3 rounded-xl border p-3"
+                  className="group rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-purple-200 hover:shadow-md"
                 >
-                  <Link
-                    href={`/preview/${item.categorySlug || "birthday"}/${item.templateId}`}
-                    onClick={() => setIsCartOpen(false)}
-                    className="shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A86DCD]"
-                    aria-label={`View ${item.title}`}
-                  >
-                    <CartThumbnail item={item} />
-                  </Link>
-
-                  <div className="min-w-0 flex-1">
+                  <div className="flex gap-3">
                     <Link
                       href={`/preview/${item.categorySlug || "birthday"}/${item.templateId}`}
                       onClick={() => setIsCartOpen(false)}
-                      className="line-clamp-2 font-semibold text-gray-900 hover:text-[#9259b7]"
+                      className="shrink-0 overflow-hidden rounded-xl"
                     >
-                      {item.title}
-                      <ArrowUpRight className="ml-1 inline h-3.5 w-3.5" />
+                      <CartThumbnail item={item} />
                     </Link>
-                    <p className="mt-1 text-sm text-gray-500">{item.category}</p>
-                    <p className="mt-3 font-bold text-[#A86DCD]">
-                      ₹{Number(item.price).toLocaleString("en-IN")}
-                    </p>
+
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/preview/${item.categorySlug || "birthday"}/${item.templateId}`}
+                        onClick={() => setIsCartOpen(false)}
+                        className="line-clamp-2 text-sm font-semibold text-gray-900 transition hover:text-[#9259b7]"
+                      >
+                        {item.title}
+                      </Link>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        {item.category}
+                      </p>
+
+                      <p className="mt-2 text-base font-bold text-[#9259b7]">
+                        ₹{Number(item.price).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => void handleRemove(item.templateId)}
                       disabled={busyTemplateId === item.templateId}
-                      className="mt-2 inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 disabled:cursor-wait disabled:opacity-60"
+                      aria-label={`Remove ${item.title}`}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                     >
                       {busyTemplateId === item.templateId ? (
                         <LoaderCircle className="h-4 w-4 animate-spin" />
                       ) : (
                         <Trash2 className="h-4 w-4" />
                       )}
-                      Remove
                     </button>
                   </div>
+
+                  <Link
+                    href={`/customize/${item.categorySlug || "birthday"}/${item.templateId}`}
+                    onClick={() => setIsCartOpen(false)}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#A86DCD] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9254B7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A86DCD] focus-visible:ring-offset-2"
+                  >
+                    Customize This Template
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
                 </div>
               ))
             )}
           </div>
 
           <div className="space-y-3 border-t px-4 pt-4">
-            {cartItems.length > 0 && (
+            {/* {cartItems.length > 0 && (
               <>
                 <div className="flex items-center justify-between text-base font-semibold">
                   <span>Subtotal</span>
@@ -215,7 +231,7 @@ const CartSheet = ({
                   Proceed to Checkout
                 </button>
               </>
-            )}
+            )} */}
 
             {user ? (
               <div className="flex items-center justify-between gap-3">
@@ -256,8 +272,8 @@ const CartSheet = ({
               Checkout
             </DialogTitle>
             <DialogDescription>
-              Secure checkout is coming soon. Your cart is saved, and no
-              payment will be processed in this demo.
+              Secure checkout is coming soon. Your cart is saved, and no payment
+              will be processed in this demo.
             </DialogDescription>
           </DialogHeader>
 

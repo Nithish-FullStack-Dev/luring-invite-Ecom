@@ -8,6 +8,7 @@ import {
   templateSavePayload,
   type TemplateFrameDraft as FrameDraft,
 } from "@/lib/template-editor";
+import { selectedTemplateCategorySlug } from "@/lib/template-categories";
 type Track = {
   id: string;
   title: string;
@@ -39,6 +40,7 @@ export default function EditCustomize({ id }: { id: number }) {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
+  const [categorySlug, setCategorySlug] = useState<string | null | undefined>();
   const [price, setPrice] = useState("0");
   const [thumbnail, setThumbnail] = useState("");
   const [previewVideo, setPreviewVideo] = useState("");
@@ -66,6 +68,7 @@ export default function EditCustomize({ id }: { id: number }) {
       setTitle(String(t.title ?? ""));
       setSlug(String(t.slug ?? ""));
       setDescription(String(t.description ?? ""));
+      setCategorySlug(selectedTemplateCategorySlug(t.categories ?? []));
       setPrice(String(t.price ?? 0));
       setThumbnail(String(t.thumbnail ?? ""));
       setPreviewVideo(String(t.previewVideo ?? ""));
@@ -114,6 +117,7 @@ export default function EditCustomize({ id }: { id: number }) {
       title,
       slug,
       description,
+      categorySlug,
       price,
       durationSeconds: String(Math.max(1, Math.round(frames.reduce((sum, frame) => sum + (Number(frame.durationSeconds) || 0), 0)))),
       thumbnail,
@@ -189,6 +193,7 @@ export default function EditCustomize({ id }: { id: number }) {
       title={title}
       slug={slug}
       description={description}
+      categorySlug={categorySlug ?? ""}
       thumbnail={thumbnail}
       previewVideo={previewVideo}
       sourceVideo={sourceVideo}
@@ -203,6 +208,7 @@ export default function EditCustomize({ id }: { id: number }) {
         if (patch.title !== undefined) setTitle(patch.title);
         if (patch.slug !== undefined) setSlug(patch.slug);
         if (patch.description !== undefined) setDescription(patch.description);
+        if (patch.categorySlug !== undefined) setCategorySlug(patch.categorySlug);
         if (patch.thumbnail !== undefined) setThumbnail(patch.thumbnail);
         if (patch.previewVideo !== undefined) setPreviewVideo(patch.previewVideo);
         if (patch.sourceVideo !== undefined) setSourceVideo(patch.sourceVideo);

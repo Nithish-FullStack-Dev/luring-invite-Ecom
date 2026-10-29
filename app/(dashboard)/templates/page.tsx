@@ -23,6 +23,10 @@ import { mediaUrl } from "@/lib/client-api";
 import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
+import {
+  templateCategoryForSlug,
+  templateCategoryFilterSlugs,
+} from "@/lib/template-categories";
 
 type Category = {
   id: string | number;
@@ -183,7 +187,9 @@ export default function TemplatesPage() {
     const requestedCategory = params.get("category");
 
     if (requestedCategory) {
-      setCategory(requestedCategory);
+      setCategory(
+        templateCategoryForSlug(requestedCategory)?.slug ?? requestedCategory,
+      );
     }
   }, []);
 
@@ -199,8 +205,14 @@ export default function TemplatesPage() {
 
     templates.forEach((template) => {
       template.categories?.forEach((item) => {
-        if (item.slug && !categoryMap.has(item.slug)) {
-          categoryMap.set(item.slug, item);
+        if (item.slug) {
+          const definition = templateCategoryForSlug(item.slug);
+          const slug = definition?.slug ?? item.slug;
+          if (!categoryMap.has(slug)) {
+            categoryMap.set(slug, definition
+              ? { ...item, name: definition.name, slug: definition.slug }
+              : item);
+          }
         }
       });
     });
@@ -216,7 +228,9 @@ export default function TemplatesPage() {
     const filtered = templates.filter((template) => {
       const matchesCategory =
         category === "all" ||
-        template.categories?.some((item) => item.slug === category);
+        template.categories?.some((item) =>
+          templateCategoryFilterSlugs(category).includes(item.slug),
+        );
 
       const searchableText = [
         template.title,

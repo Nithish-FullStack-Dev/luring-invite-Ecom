@@ -447,11 +447,9 @@ export default function TemplatePreviewPage() {
                         <Check size={19} />
                         Added to Cart
                       </>
-                    ) : !cartInitialized ? (
-                      "Checking your session..."
-                    ) : isCheckingSession ? (
-                      "Validating your session..."
-                    ) : isAddingToCart ? (
+                    ) : isAddingToCart ||
+                      isCheckingSession ||
+                      !cartInitialized ? (
                       "Adding..."
                     ) : (
                       <>
@@ -536,7 +534,8 @@ export default function TemplatePreviewPage() {
                     </a>
 
                     <p className="mt-3 text-xs leading-5 text-[#9a8ba4]">
-                      Tell us your ideas, and we will help you bring them to life.
+                      Tell us your ideas, and we will help you bring them to
+                      life.
                     </p>
                   </div>
                 </div>

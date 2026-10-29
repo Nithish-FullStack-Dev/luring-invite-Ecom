@@ -432,7 +432,7 @@ export default function CustomizePage() {
                   Line breaks are preserved in your generated video.
                 </p>
               </div>
-              <button
+              {/* <button
                 type="button"
                 title="Reset current frame text"
                 onClick={() => {
@@ -450,7 +450,7 @@ export default function CustomizePage() {
                 className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
               >
                 <RefreshCw size={16} />
-              </button>
+              </button> */}
             </div>
 
             {currentFields.length === 0 ? (

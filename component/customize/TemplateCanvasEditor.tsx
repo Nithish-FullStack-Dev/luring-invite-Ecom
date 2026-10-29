@@ -61,6 +61,7 @@ type Props = {
   title: string;
   slug: string;
   description: string;
+  categorySlug: string;
   thumbnail: string;
   previewVideo: string;
   sourceVideo: string;
@@ -93,6 +94,7 @@ type StudioDetails = {
   title: string;
   slug: string;
   description: string;
+  categorySlug: string | null;
   thumbnail: string;
   previewVideo: string;
   sourceVideo: string;
@@ -564,6 +566,7 @@ export default function TemplateCanvasEditor({
   title,
   slug,
   description,
+  categorySlug,
   thumbnail,
   previewVideo,
   sourceVideo,
@@ -1575,6 +1578,23 @@ export default function TemplateCanvasEditor({
       </div>
       {detailsOpen && (
         <div className="grid gap-3 border-b bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-4">
+          <label className="text-xs font-medium text-slate-700">
+            Category
+            <select
+              value={categorySlug}
+              onChange={(event) =>
+                onDetailsChange({ categorySlug: event.target.value || null })
+              }
+              className="mt-1 w-full rounded border bg-white px-2 py-2 text-sm"
+            >
+              <option value="">Select a category</option>
+              <option value="wedding">Wedding</option>
+              <option value="birthday">Birthday</option>
+              <option value="anniversary">Anniversary</option>
+              <option value="housewarming">Housewarming</option>
+              <option value="others">Others</option>
+            </select>
+          </label>
           <label className="text-xs font-medium text-slate-700">
             Slug
             <input

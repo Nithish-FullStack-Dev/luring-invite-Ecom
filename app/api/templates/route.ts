@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { serializeTemplate } from "@/lib/serializers";
 import { templateAdminFailure } from "@/lib/template-api-auth";
 import { hasUniqueTextKeys } from "@/lib/template-config";
+import {
+  templateCategoryFilterSlugs,
+  templateCategoryForSlug,
+  type TemplateCategorySlug,
+} from "@/lib/template-categories";
+import { resolveTemplateCategoryId } from "@/lib/template-category-persistence";
 
 function slugify(value: string) {
   return (
@@ -33,7 +39,15 @@ export async function GET(request: NextRequest) {
       where: {
         active: true,
         ...(category && category !== "all"
-          ? { categories: { some: { category: { slug: category } } } }
+          ? {
+              categories: {
+                some: {
+                  category: {
+                    slug: { in: templateCategoryFilterSlugs(category) },
+                  },
+                },
+              },
+            }
           : {}),
         ...(search
           ? {
@@ -92,6 +106,16 @@ export async function POST(request: NextRequest) {
         : null;
     const active = body.active !== false;
     const frames = Array.isArray(body.frames) ? body.frames : [];
+    let categorySlug: TemplateCategorySlug | null | undefined;
+    if (Object.prototype.hasOwnProperty.call(body, "categorySlug")) {
+      if (body.categorySlug === null || body.categorySlug === "") {
+        categorySlug = null;
+      } else {
+        const category = templateCategoryForSlug(body.categorySlug);
+        if (!category) return error("Select a valid template category.");
+        categorySlug = category.slug;
+      }
+    }
 
     if (!title) return error("Template title is required.");
     if (!Number.isFinite(price) || price < 0)
@@ -139,6 +163,9 @@ export async function POST(request: NextRequest) {
 
     const created = await prisma.$transaction(async (tx) => {
       const musicTrackIds = [...requestedMusicIds];
+      const categoryId = categorySlug
+        ? await resolveTemplateCategoryId(tx, categorySlug)
+        : undefined;
       if (
         requestedMusic &&
         typeof requestedMusic.title === "string" &&
@@ -170,6 +197,13 @@ export async function POST(request: NextRequest) {
           durationSeconds,
           active,
           musicConfigured: configuredMusic,
+          ...(categoryId
+            ? {
+                categories: {
+                  create: { category: { connect: { id: categoryId } } },
+                },
+              }
+            : {}),
           ...(configuredMusic
             ? { musicTracks: { connect: musicTrackIds.map((id) => ({ id })) } }
             : {}),

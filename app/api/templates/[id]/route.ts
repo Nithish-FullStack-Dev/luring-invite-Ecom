@@ -4,6 +4,11 @@ import { serializeTemplate } from "@/lib/serializers";
 import { Prisma } from "@prisma/client";
 import { templateAdminFailure } from "@/lib/template-api-auth";
 import { hasUniqueTextKeys } from "@/lib/template-config";
+import {
+  templateCategoryForSlug,
+  type TemplateCategorySlug,
+} from "@/lib/template-categories";
+import { resolveTemplateCategoryId } from "@/lib/template-category-persistence";
 
 type Context = { params: Promise<{ id: string }> };
 const fail = (message: string, status = 400) =>
@@ -77,6 +82,17 @@ export async function PATCH(request: NextRequest, ctx: Context) {
     const parsed: unknown = await request.json();
     if (!isRecord(parsed)) return fail("Request body must be an object.");
     const body = parsed;
+    let categorySlug: TemplateCategorySlug | null | undefined;
+    const hasCategory = Object.prototype.hasOwnProperty.call(body, "categorySlug");
+    if (hasCategory) {
+      if (body.categorySlug === null || body.categorySlug === "") {
+        categorySlug = null;
+      } else {
+        const category = templateCategoryForSlug(body.categorySlug);
+        if (!category) return fail("Select a valid template category.");
+        categorySlug = category.slug;
+      }
+    }
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const price = Number(body.price);
     const durationSeconds = Number(body.durationSeconds);
@@ -126,6 +142,15 @@ export async function PATCH(request: NextRequest, ctx: Context) {
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.templateFrame.deleteMany({ where: { templateId: id } });
+      if (hasCategory) {
+        await tx.templateCategory.deleteMany({ where: { templateId: id } });
+        if (categorySlug) {
+          const categoryId = await resolveTemplateCategoryId(tx, categorySlug);
+          await tx.templateCategory.create({
+            data: { templateId: id, categoryId },
+          });
+        }
+      }
       const template = await tx.template.update({
         where: { id },
         data: {

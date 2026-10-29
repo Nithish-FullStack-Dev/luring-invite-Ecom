@@ -3,6 +3,7 @@ import {
   normalizeConfigForEditor,
 } from "@/lib/template-config";
 import { resolveFontAsset } from "@/lib/font-registry";
+import { templateCategoryForSlug } from "@/lib/template-categories";
 
 export type AnimationPreset =
   | "none"
@@ -104,6 +105,7 @@ export type TemplateSavePayload = {
   title: string;
   slug: string;
   description: string;
+  categorySlug?: string | null;
   price: number;
   durationSeconds: number;
   thumbnail: string;
@@ -504,6 +506,7 @@ export function templateSavePayload(input: {
   title: string;
   slug: string;
   description: string;
+  categorySlug?: string | null;
   price: string;
   durationSeconds: string;
   thumbnail: string;
@@ -518,6 +521,9 @@ export function templateSavePayload(input: {
     title: input.title.trim(),
     slug: input.slug.trim(),
     description: input.description.trim(),
+    ...(input.categorySlug !== undefined
+      ? { categorySlug: input.categorySlug || null }
+      : {}),
     price: Number(input.price || 0),
     durationSeconds: Number(input.durationSeconds || 0),
     thumbnail: input.thumbnail,
@@ -600,11 +606,24 @@ export function parseTemplateJson(value: string): TemplateSavePayload {
           isRecord(track) && typeof track.id === "string" ? [track.id] : [],
         )
       : [];
+  const importedCategory =
+    parsed.categorySlug === null || parsed.categorySlug === ""
+      ? null
+      : templateCategoryForSlug(parsed.categorySlug);
+  if (
+    parsed.categorySlug !== undefined &&
+    parsed.categorySlug !== null &&
+    parsed.categorySlug !== "" &&
+    !importedCategory
+  ) {
+    throw new Error("Select a valid template category.");
+  }
   return {
     ...parsed,
     price: Number(parsed.price),
     durationSeconds: Number(parsed.durationSeconds),
     slug: typeof parsed.slug === "string" ? parsed.slug : "",
+    categorySlug: importedCategory?.slug ?? null,
     musicConfigured: true,
     active: parsed.active !== false,
     frames: normalizedFrames as TemplateSavePayload["frames"],
