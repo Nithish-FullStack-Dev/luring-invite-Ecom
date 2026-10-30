@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import sharp from "sharp";
 import { normalizePublicPath, resolvePublicFile } from "@/lib/media";
 import {
   normalizeNewlines,
@@ -25,6 +26,7 @@ import {
 const execFileAsync = promisify(execFile);
 const PROJECT_ROOT = process.cwd();
 const PUBLIC_ROOT = path.join(PROJECT_ROOT, "public");
+const PRIVATE_STORAGE_ROOT = path.join(PROJECT_ROOT, "storage");
 const FFMPEG = process.env.FFMPEG_PATH || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_PATH || "ffprobe";
 const fontCoverageCache = new Map<string, ReturnType<typeof createFontGlyphChecker>>();
@@ -69,8 +71,23 @@ type GenerateOptions = {
   frames: RenderFrame[];
   framesData: Record<string, FrameInput>;
   musicPath?: string | null;
+  watermark?: boolean;
 };
 type CanvasSize = { width: number; height: number };
+
+async function createPreviewWatermark(filePath: string, canvas: CanvasSize) {
+  const fontSize = Math.max(30, Math.round(Math.min(canvas.width, canvas.height) * 0.055));
+  const columnGap = Math.max(190, Math.round(canvas.width * 0.34));
+  const rowGap = Math.max(115, Math.round(canvas.height * 0.13));
+  const labels: string[] = [];
+  for (let y = -canvas.height; y < canvas.height * 2; y += rowGap) {
+    for (let x = -canvas.width; x < canvas.width * 2; x += columnGap) {
+      labels.push(`<text x="${x}" y="${y}" fill="white" fill-opacity="0.23" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800">outrightsluringinvite</text>`);
+    }
+  }
+  const svg = `<svg width="${canvas.width}" height="${canvas.height}" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-25 ${canvas.width / 2} ${canvas.height / 2})">${labels.join("")}</g></svg>`;
+  await sharp(Buffer.from(svg)).png().toFile(filePath);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -1041,17 +1058,21 @@ function characterPopProgressExpression(
 
 export async function renderInvitation(
   options: GenerateOptions,
-): Promise<{ outputPath: string; publicUrl: string }> {
+): Promise<{ outputPath: string; publicUrl: string | null }> {
   const jobId = crypto.randomUUID();
-  const workDirRelative = `public/media/tmp/${jobId}`;
+  const workDirRelative = `storage/tmp/${jobId}`;
   const workDirAbsolute = path.join(PROJECT_ROOT, workDirRelative);
   const generatedDir = path.join(PUBLIC_ROOT, "media", "generated");
+  const privateGeneratedDir = path.join(PRIVATE_STORAGE_ROOT, "generated");
   await fs.mkdir(workDirAbsolute, { recursive: true });
   await fs.mkdir(generatedDir, { recursive: true });
+  await fs.mkdir(privateGeneratedDir, { recursive: true });
 
   const renderedFrames: string[] = [];
   const renderedDurations: number[] = [];
-  const finalAbsolute = path.join(generatedDir, `invitation-${jobId}.mp4`);
+  const preview = options.watermark !== false;
+  const finalAbsolute = path.join(preview ? generatedDir : privateGeneratedDir, `${preview ? "preview" : "invitation"}-${jobId}.mp4`);
+  const assembledAbsolute = path.join(workDirAbsolute, "assembled.mp4");
   const intermediateAbsolute = path.join(
     workDirAbsolute,
     "joined-no-audio.mp4",
@@ -1224,18 +1245,30 @@ export async function renderInvitation(
         "-shortest",
         "-movflags",
         "+faststart",
-        finalAbsolute,
+        assembledAbsolute,
       ]);
     } else {
-      await fs.rename(intermediateAbsolute, finalAbsolute);
+      await fs.rename(intermediateAbsolute, assembledAbsolute);
+    }
+
+    if (preview) {
+      const watermarkAbsolute = path.join(workDirAbsolute, "watermark.png");
+      await createPreviewWatermark(watermarkAbsolute, canvas);
+      await runFfmpeg([
+        "-y", "-i", assembledAbsolute, "-loop", "1", "-i", watermarkAbsolute,
+        "-filter_complex", "[0:v][1:v]overlay=0:0:format=auto[v]",
+        "-map", "[v]", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "20", "-c:a", "copy", "-shortest", "-movflags", "+faststart", finalAbsolute,
+      ]);
+    } else {
+      await fs.rename(assembledAbsolute, finalAbsolute);
     }
 
     return {
-      outputPath: path
-        .relative(PUBLIC_ROOT, finalAbsolute)
+      outputPath: path.relative(preview ? PUBLIC_ROOT : PROJECT_ROOT, finalAbsolute)
         .split(path.sep)
         .join("/"),
-      publicUrl: "/media/generated/" + path.basename(finalAbsolute),
+      publicUrl: preview ? "/media/generated/" + path.basename(finalAbsolute) : null,
     };
   } finally {
     await fs

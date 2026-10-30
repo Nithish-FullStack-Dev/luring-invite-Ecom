@@ -101,6 +101,7 @@ model VideoJob {
   status     VideoJobStatus @default(PENDING)
   input      Json
   outputPath String?
+  finalPath  String?
   error      String?        @db.Text
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt

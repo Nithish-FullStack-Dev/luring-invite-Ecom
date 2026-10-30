@@ -27,7 +27,7 @@ export default function CheckoutSuccessPage() {
         <p className="text-4xl">✓</p>
         <h1 className="mt-4 text-2xl font-bold text-gray-900">Payment confirmed</h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">
-          Your order {order ? `#${order}` : ""} has been confirmed. Your personalized invitation video is ready to download.
+          Your order {order ? `#${order}` : ""} has been confirmed. Your clean, high-quality video is being prepared for download. It may take a few minutes to start.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           {downloadUrl && (

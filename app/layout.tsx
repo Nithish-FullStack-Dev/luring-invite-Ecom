@@ -4,6 +4,7 @@ import { Ysabeau } from "next/font/google";
 import "./globals.css";
 import Providers from "@/component/Providers";
 import { cn } from "@/lib/utils";
+import { SiteProtection } from "@/component/SiteProtection";
 
 // const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -48,7 +49,10 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", ysabeau.variable)}>
       <body className="min-h-screen antialiased font-sans">
-        <Providers>{children}</Providers>
+        <Providers>
+           {/* <SiteProtection /> */}
+          {children}
+          </Providers>
       </body>
     </html>
   );

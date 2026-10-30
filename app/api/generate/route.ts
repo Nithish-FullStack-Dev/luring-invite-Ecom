@@ -208,7 +208,12 @@ export async function POST(request: NextRequest) {
       frames,
       framesData: safeFramesData,
       musicPath,
+      watermark: true,
     });
+
+    if (!rendered.publicUrl) {
+      throw new Error("Unable to create the protected preview video.");
+    }
 
     await prisma.videoJob.update({
       where: { id: job.id },
