@@ -75,6 +75,7 @@ type HistoryPayment = {
   currency: string;
   status: string;
   method: string | null;
+  signatureVerified: boolean;
   failureReason: string | null;
   paidAt: string | null;
   createdAt: string;
@@ -791,6 +792,10 @@ function OrderDetailsContent({ order }: { order: OrderDetails }) {
                   <DetailRow label="Amount" value={formatCurrency(payment.amount, payment.currency)} />
                   <DetailRow label="Method" value={payment.method} />
                   <DetailRow label="Razorpay order" value={payment.razorpayOrderId} />
+                  <DetailRow
+                    label="Signature verified"
+                    value={payment.signatureVerified ? "Yes" : "No"}
+                  />
                   <DetailRow label="Transaction date" value={formatDate(payment.createdAt)} />
                   <DetailRow label="Paid at" value={formatDate(payment.paidAt)} />
                   {payment.failureReason && (
@@ -817,6 +822,10 @@ function PaymentDetailsContent({ payment }: { payment: PaymentDetails }) {
       <DetailRow label="Transaction date" value={formatDate(payment.createdAt)} />
       <DetailRow label="Payment date" value={formatDate(payment.paidAt)} />
       <DetailRow label="Payment method" value={payment.method} />
+      <DetailRow
+        label="Signature verified"
+        value={payment.signatureVerified ? "Yes" : "No"}
+      />
       <DetailRow label="Razorpay Payment ID" value={payment.razorpayPaymentId} />
       <DetailRow label="Razorpay Order ID" value={payment.razorpayOrderId} />
       {payment.failureReason && (

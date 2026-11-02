@@ -1,5 +1,6 @@
 import { connection, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/cart/auth";
+import { getCustomerOrderWhere } from "@/lib/cart/customer-history";
 import { prisma } from "@/lib/prisma";
 
 type Context = { params: Promise<{ paymentId: string }> };
@@ -23,8 +24,9 @@ export async function GET(_request: Request, context: Context) {
       );
     }
 
+    const ownershipWhere = await getCustomerOrderWhere(user);
     const payment = await prisma.payment.findFirst({
-      where: { id: paymentId, order: { userId: user.id } },
+      where: { id: paymentId, order: { is: ownershipWhere } },
       select: {
         id: true,
         razorpayOrderId: true,
@@ -33,6 +35,7 @@ export async function GET(_request: Request, context: Context) {
         currency: true,
         status: true,
         method: true,
+        signatureVerified: true,
         failureReason: true,
         paidAt: true,
         createdAt: true,

@@ -1,5 +1,6 @@
 import { connection, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/cart/auth";
+import { getCustomerOrderWhere } from "@/lib/cart/customer-history";
 import { prisma } from "@/lib/prisma";
 
 type Context = { params: Promise<{ orderId: string }> };
@@ -20,8 +21,9 @@ export async function GET(_request: Request, context: Context) {
       return NextResponse.json({ message: "Invalid order ID." }, { status: 400 });
     }
 
+    const ownershipWhere = await getCustomerOrderWhere(user);
     const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: user.id },
+      where: { id: orderId, ...ownershipWhere },
       select: {
         id: true,
         orderNumber: true,
@@ -54,6 +56,7 @@ export async function GET(_request: Request, context: Context) {
             currency: true,
             status: true,
             method: true,
+            signatureVerified: true,
             failureReason: true,
             paidAt: true,
             createdAt: true,
