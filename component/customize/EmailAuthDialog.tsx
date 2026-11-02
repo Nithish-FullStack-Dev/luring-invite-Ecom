@@ -22,7 +22,7 @@ const OTP_COOLDOWN_SECONDS = 30;
 type EmailAuthDialogProps = {
   open: boolean;
   templateTitle: string;
-  purpose?: "add" | "save";
+  purpose?: "add" | "save" | "history";
   onClose: () => void;
   onContinueWithoutLogin?: () => void | Promise<void>;
   onAuthenticated: () => void | Promise<void>;
@@ -202,12 +202,18 @@ export default function EmailAuthDialog({
             <Sparkles className="h-6 w-6" />
           </div>
           <DialogTitle className="text-2xl font-semibold text-[#302438]">
-            {purpose === "add" ? `Add ${templateTitle} to your cart` : "Save your cart"}
+            {purpose === "add"
+              ? `Add ${templateTitle} to your cart`
+              : purpose === "history"
+                ? "Sign in to view your history"
+                : "Save your cart"}
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-600">
             {purpose === "add"
               ? "Save this template to your cart and continue with your preferred flow."
-              : "Verify your email to keep this cart associated with your account."}
+              : purpose === "history"
+                ? "Verify your email to securely view your orders and payment transactions."
+                : "Verify your email to keep this cart associated with your account."}
           </DialogDescription>
         </DialogHeader>
 

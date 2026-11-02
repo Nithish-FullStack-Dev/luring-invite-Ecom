@@ -4,6 +4,53 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyWebhookSignature } from "@/lib/payments/razorpay";
 
+type RazorpayPaymentEntity = {
+  id?: string;
+  order_id?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  method?: string;
+  error_description?: string;
+  error_reason?: string;
+};
+
+type RazorpayRefundEntity = {
+  id?: string;
+  payment_id?: string;
+  status?: string;
+};
+
+type RazorpayWebhookBody = {
+  event?: string;
+  payload?: {
+    payment?: { entity?: RazorpayPaymentEntity };
+    refund?: { entity?: RazorpayRefundEntity };
+  };
+};
+
+async function findAttempt(
+  transaction: Prisma.TransactionClient,
+  orderId: string,
+  razorpayOrderId: string,
+  razorpayPaymentId: string,
+) {
+  return (
+    (await transaction.payment.findFirst({
+      where: { orderId, razorpayOrderId, razorpayPaymentId },
+    })) ??
+    (await transaction.payment.findFirst({
+      where: {
+        orderId,
+        razorpayOrderId,
+        razorpayPaymentId: null,
+        status: "PENDING",
+      },
+      orderBy: { createdAt: "asc" },
+    }))
+  );
+}
+
 export async function POST(request: NextRequest) {
   const raw = await request.text();
   const signature = request.headers.get("x-razorpay-signature") || "";
@@ -12,32 +59,33 @@ export async function POST(request: NextRequest) {
       { message: "Invalid webhook signature." },
       { status: 400 },
     );
+  }
+
   try {
-    const body = JSON.parse(raw) as {
-      event?: string;
-      payload?: {
-        payment?: {
-          entity?: {
-            id?: string;
-            order_id?: string;
-            amount?: number;
-            currency?: string;
-            status?: string;
-            method?: string;
-          };
-        };
-      };
-    };
+    const body = JSON.parse(raw) as RazorpayWebhookBody;
+    const entity = body.payload?.payment?.entity;
+    const refund = body.payload?.refund?.entity;
     const eventId =
       request.headers.get("x-razorpay-event-id") ||
-      `${body.event}:${body.payload?.payment?.entity?.id || "unknown"}`;
-    const entity = body.payload?.payment?.entity;
-    const order = entity?.order_id
-      ? await prisma.order.findUnique({
-          where: { razorpayOrderId: entity.order_id },
-          include: { items: true },
+      `${body.event}:${entity?.id || refund?.id || "unknown"}`;
+    const refundedPayment = refund?.payment_id
+      ? await prisma.payment.findUnique({
+          where: { razorpayPaymentId: refund.payment_id },
+          select: { orderId: true },
         })
       : null;
+    const order = refundedPayment
+      ? await prisma.order.findUnique({
+          where: { id: refundedPayment.orderId },
+          include: { items: true },
+        })
+      : entity?.order_id
+        ? await prisma.order.findUnique({
+            where: { razorpayOrderId: entity.order_id },
+            include: { items: true },
+          })
+        : null;
+
     await prisma.$transaction(async (tx) => {
       const existing = await tx.paymentWebhook.findUnique({
         where: { eventId },
@@ -106,6 +154,7 @@ export async function POST(request: NextRequest) {
             create: { orderId: order.id, videoJobId: item.videoJobId },
           });
     });
+
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("Razorpay webhook failed:", error);
