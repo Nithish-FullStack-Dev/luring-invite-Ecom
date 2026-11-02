@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
     )?.value;
 
     const checkoutGuestId = request.cookies.get("luring_checkout_guest")?.value;
-    const email = input.email.toLowerCase();
-    if (user && user.email !== email)
+    const email = input.email.trim().toLowerCase();
+    if (user && user.email.trim().toLowerCase() !== email)
       return NextResponse.json(
         { message: "Use the email associated with your signed-in account." },
         { status: 400 },
@@ -75,7 +75,6 @@ export async function POST(request: NextRequest) {
           country: input.country,
           postalCode: input.postalCode,
           companyName: input.companyName || null,
-          ...(user ? { userId: user.id } : {}),
         },
 
         create: {
@@ -92,6 +91,13 @@ export async function POST(request: NextRequest) {
           companyName: input.companyName || null,
         },
       });
+
+      if (user) {
+        await tx.customer.updateMany({
+          where: { id: customer.id, userId: null },
+          data: { userId: user.id },
+        });
+      }
 
       const order = await tx.order.create({
         data: {

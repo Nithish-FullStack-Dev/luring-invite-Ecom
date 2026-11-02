@@ -1,5 +1,6 @@
 import { connection, NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/cart/auth";
+import { getCustomerOrderWhere } from "@/lib/cart/customer-history";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 10;
@@ -35,18 +36,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const orderWhere = { userId: user.id };
+    const orderWhere = await getCustomerOrderWhere(user);
     const paymentWhere = {
-      order: { userId: user.id },
+      order: { is: orderWhere },
     };
+    const email = user.email.trim().toLowerCase();
 
     const [
-      customer,
+      linkedCustomer,
+      emailCustomer,
       successfulPayments,
-      spentPayments,
       totalOrders,
       pendingPayments,
-      ordersCount,
+      spentOrders,
       orders,
       paymentsCount,
       payments,
@@ -55,18 +57,21 @@ export async function GET(request: NextRequest) {
         where: { userId: user.id },
         select: { fullName: true },
       }),
+      prisma.customer.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+        select: { fullName: true },
+      }),
       prisma.payment.count({
         where: { ...paymentWhere, status: "PAID" },
-      }),
-      prisma.payment.aggregate({
-        where: { ...paymentWhere, status: "PAID" },
-        _sum: { amount: true },
       }),
       prisma.order.count({ where: orderWhere }),
       prisma.payment.count({
         where: { ...paymentWhere, status: "PENDING" },
       }),
-      prisma.order.count({ where: orderWhere }),
+      prisma.order.aggregate({
+        where: { ...orderWhere, paymentStatus: "PAID" },
+        _sum: { total: true },
+      }),
       prisma.order.findMany({
         where: orderWhere,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -104,6 +109,7 @@ export async function GET(request: NextRequest) {
               currency: true,
               status: true,
               method: true,
+              signatureVerified: true,
               failureReason: true,
               paidAt: true,
               createdAt: true,
@@ -125,6 +131,7 @@ export async function GET(request: NextRequest) {
           currency: true,
           status: true,
           method: true,
+          signatureVerified: true,
           failureReason: true,
           paidAt: true,
           createdAt: true,
@@ -135,11 +142,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        user: { name: customer?.fullName ?? user.name, email: user.email },
+        user: {
+          name: linkedCustomer?.fullName ?? emailCustomer?.fullName ?? user.name,
+          email: user.email,
+        },
         summary: {
           totalOrders,
           successfulPayments,
-          totalAmountSpent: Number(spentPayments._sum.amount ?? 0),
+          totalAmountSpent: Number(spentOrders._sum.total ?? 0),
           pendingPayments,
         },
         orders: {
@@ -162,8 +172,8 @@ export async function GET(request: NextRequest) {
           })),
           page: ordersPage,
           pageSize: PAGE_SIZE,
-          total: ordersCount,
-          totalPages: Math.ceil(ordersCount / PAGE_SIZE),
+          total: totalOrders,
+          totalPages: Math.ceil(totalOrders / PAGE_SIZE),
         },
         payments: {
           items: payments.map((payment) => ({

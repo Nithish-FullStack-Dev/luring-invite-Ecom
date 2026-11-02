@@ -112,10 +112,18 @@ export async function POST(request: NextRequest) {
     for (const [frameIndex, frame] of frames.entries()) {
       const config = normalizeConfigForEditor(frame.placeholderConfig);
       const texts = Array.isArray(config.texts) ? config.texts : [];
-      const rawValue = submitted[String(frame.id)] ?? submitted[String(frameIndex)] ?? {};
-      if (!rawValue || typeof rawValue !== "object" || Array.isArray(rawValue)) {
+      const rawValue =
+        submitted[String(frame.id)] ?? submitted[String(frameIndex)] ?? {};
+      if (
+        !rawValue ||
+        typeof rawValue !== "object" ||
+        Array.isArray(rawValue)
+      ) {
         return NextResponse.json(
-          { status: "error", message: `Text values for frame ${frame.frameNumber} are invalid.` },
+          {
+            status: "error",
+            message: `Text values for frame ${frame.frameNumber} are invalid.`,
+          },
           { status: 400 },
         );
       }
@@ -123,12 +131,16 @@ export async function POST(request: NextRequest) {
       const allowedKeys = new Set<string>();
       const normalized: Record<string, string> = {};
       for (const [textIndex, field] of texts.entries()) {
-        if (field.customerEditable === false || field.visible === false) continue;
+        if (field.customerEditable === false || field.visible === false)
+          continue;
         const fieldKey = String(field.key ?? `text_${textIndex}`);
         const legacyKey = `text_${textIndex}`;
         allowedKeys.add(fieldKey);
         allowedKeys.add(legacyKey);
-        const valueKey = Object.prototype.hasOwnProperty.call(rawFrame, fieldKey)
+        const valueKey = Object.prototype.hasOwnProperty.call(
+          rawFrame,
+          fieldKey,
+        )
           ? fieldKey
           : legacyKey;
         const rawText = Object.prototype.hasOwnProperty.call(rawFrame, valueKey)
@@ -136,21 +148,33 @@ export async function POST(request: NextRequest) {
           : field.text;
         if (typeof rawText !== "string") {
           return NextResponse.json(
-            { status: "error", message: `Text field ${field.label || field.key || textIndex + 1} must be plain text.` },
+            {
+              status: "error",
+              message: `Text field ${field.label || field.key || textIndex + 1} must be plain text.`,
+            },
             { status: 400 },
           );
         }
         const value = rawText.replace(/\r\n?/g, "\n");
-        const maxLength = Math.max(1, Math.min(2000, Math.floor(Number(field.maxLength) || 500)));
+        const maxLength = Math.max(
+          1,
+          Math.min(2000, Math.floor(Number(field.maxLength) || 500)),
+        );
         if (countGraphemes(value) > maxLength) {
           return NextResponse.json(
-            { status: "error", message: `${field.label || field.key || `Text field ${textIndex + 1}`} is limited to ${maxLength} characters.` },
+            {
+              status: "error",
+              message: `${field.label || field.key || `Text field ${textIndex + 1}`} is limited to ${maxLength} characters.`,
+            },
             { status: 400 },
           );
         }
         if (field.required === true && !value.trim()) {
           return NextResponse.json(
-            { status: "error", message: `${field.label || field.key || `Text field ${textIndex + 1}`} is required.` },
+            {
+              status: "error",
+              message: `${field.label || field.key || `Text field ${textIndex + 1}`} is required.`,
+            },
             { status: 400 },
           );
         }
@@ -158,7 +182,10 @@ export async function POST(request: NextRequest) {
       }
       if (Object.keys(rawFrame).some((key) => !allowedKeys.has(key))) {
         return NextResponse.json(
-          { status: "error", message: `This request contains fields that are not editable in frame ${frame.frameNumber}.` },
+          {
+            status: "error",
+            message: `This request contains fields that are not editable in frame ${frame.frameNumber}.`,
+          },
           { status: 400 },
         );
       }

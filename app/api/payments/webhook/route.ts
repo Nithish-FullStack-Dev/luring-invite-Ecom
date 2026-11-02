@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
       { message: "Invalid webhook signature." },
       { status: 400 },
     );
-  }
 
   try {
     const body = JSON.parse(raw) as RazorpayWebhookBody;
