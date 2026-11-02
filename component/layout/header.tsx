@@ -44,7 +44,7 @@ const Header: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null); // ✅ NEW
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { cartItems, initialized: cartInitialized } = useCart();
+  const { cartItems, initialized: cartInitialized, user } = useCart();
 
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
   const [quoteData, setQuoteData] = useState({
@@ -278,6 +278,14 @@ const Header: React.FC = () => {
                     {label}
                   </Link>
                 ))}
+                {cartInitialized && user && (
+                  <Link
+                    href="/history"
+                    className="font-semibold hover:text-[#A86DCD]"
+                  >
+                    My History
+                  </Link>
+                )}
 
                 {/* ✅ Quote Button */}
                 <button
@@ -402,6 +410,29 @@ const Header: React.FC = () => {
                     </Link>
                   </motion.div>
                 ))}
+                {cartInitialized && user && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: navItems.length * 0.045,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                  >
+                    <Link
+                      href="/history"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="group flex items-center justify-between rounded-xl px-4 py-2 text-lg font-medium text-gray-800 transition-colors duration-200 hover:bg-purple-50 hover:text-[#a86dcd] active:bg-purple-100"
+                    >
+                      <span>My History</span>
+                      <span className="translate-x-0 text-xl text-gray-300 transition-all duration-200 group-hover:translate-x-1 group-hover:text-[#a86dcd]">
+                        →
+                      </span>
+                    </Link>
+                  </motion.div>
+                )}
               </nav>
 
               {/* Quote CTA */}
