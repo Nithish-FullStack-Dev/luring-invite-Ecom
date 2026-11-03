@@ -19,9 +19,18 @@ export const metadata: Metadata = {
     default: "Luring Invite | Luxury Invitations",
     template: "%s | Luring Invite",
   },
+
   description:
     "Discover elegant, personalized invitations for weddings, anniversaries, birthdays, and every special occasion.",
+
   applicationName: "Luring Invite",
+
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
+
   keywords: [
     "luxury invitations",
     "digital invitations",
@@ -29,6 +38,7 @@ export const metadata: Metadata = {
     "anniversary invitations",
     "personalized invitations",
   ],
+
   robots: {
     index: true,
     follow: true,
@@ -47,12 +57,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={cn("font-sans", ysabeau.variable)}>
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      className={cn("font-sans", ysabeau.variable)}
+    >
       <body className="min-h-screen antialiased font-sans">
         <Providers>
-           {/* <SiteProtection /> */}
+          {/* <SiteProtection /> */}
           {children}
-          </Providers>
+        </Providers>
       </body>
     </html>
   );
