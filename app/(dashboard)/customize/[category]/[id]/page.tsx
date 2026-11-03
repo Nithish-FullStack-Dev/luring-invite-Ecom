@@ -23,6 +23,13 @@ import Header from "@/component/layout/header";
 import Footer from "@/component/layout/Footer";
 import FloatingWhatsApp from "@/component/layout/FloatingWhatsApp";
 import VideoPreviewDialog from "@/component/customize/VideoPreviewDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/component/ui/dialog";
 
 type Category = { id: string; name: string; slug: string };
 type TextConfig = {
@@ -690,7 +697,11 @@ export default function CustomizePage() {
                 {/* Open checkout to purchase the video */}
                 <button
                   type="button"
-                  onClick={() => router.push(`/checkout?videoJobId=${encodeURIComponent(jobId)}`)}
+                  onClick={() =>
+                    router.push(
+                      `/checkout?videoJobId=${encodeURIComponent(jobId)}`,
+                    )
+                  }
                   disabled={!jobId}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#985cc0] px-5 py-3 font-semibold text-white shadow-lg shadow-purple-200 transition hover:bg-[#8147a8]"
                 >
@@ -712,109 +723,105 @@ export default function CustomizePage() {
         </div>
 
         {/* Review dialog */}
-        {showReview && (
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/65 p-3 sm:p-6"
-            onClick={() => setShowReview(false)}
-          >
-            <div
-              className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setShowReview(false)}
-                aria-label="Close review"
-                className="absolute right-4 top-4 rounded-full p-2 text-gray-500 hover:bg-gray-100"
-              >
-                <X size={20} />
-              </button>
-              <h2 className="page-title pr-8 text-2xl font-semibold">
+        <Dialog open={showReview} onOpenChange={setShowReview}>
+          <DialogContent className="max-h-[90vh] w-[calc(100%-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl p-5 sm:p-7">
+            <DialogHeader>
+              <DialogTitle className="page-title text-2xl font-semibold">
                 Review your invitation
-              </h2>
-              <p className="mt-2 text-sm text-gray-500">
+              </DialogTitle>
+
+              <DialogDescription>
                 Check the edited details before generating. Preview thumbnails
                 remain artwork-only.
-              </p>
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                {frames.map((frame) => {
-                  const textFields = frame.placeholderConfig?.texts || [];
-                  const values = framesData[String(frame.id)] || {};
-                  return (
-                    <div
-                      key={frame.id}
-                      className="rounded-xl border border-gray-200 p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        {frame.previewImage && (
-                          <img
-                            src={mediaUrl(frame.previewImage)}
-                            alt=""
-                            className="h-20 w-14 rounded object-cover"
-                          />
-                        )}
-                        <div>
-                          <h3 className="font-semibold">
-                            {frame.title || `Frame ${frame.frameNumber}`}
-                          </h3>
-                          <p className="text-xs text-gray-500">
-                            {textFields.length} editable field
-                            {textFields.length === 1 ? "" : "s"}
-                          </p>
-                        </div>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {frames.map((frame) => {
+                const textFields = frame.placeholderConfig?.texts || [];
+                const values = framesData[String(frame.id)] || {};
+
+                return (
+                  <div
+                    key={frame.id}
+                    className="rounded-xl border border-gray-200 p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      {frame.previewImage && (
+                        <img
+                          src={mediaUrl(frame.previewImage)}
+                          alt=""
+                          className="h-20 w-14 rounded object-cover"
+                        />
+                      )}
+
+                      <div>
+                        <h3 className="font-semibold">
+                          {frame.title || `Frame ${frame.frameNumber}`}
+                        </h3>
+
+                        <p className="text-xs text-gray-500">
+                          {textFields.length} editable field
+                          {textFields.length === 1 ? "" : "s"}
+                        </p>
                       </div>
-                      <div className="mt-3 space-y-2">
-                        {textFields.map((field, index) => (
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {textFields.map((field, index) => {
+                        const fieldKey = String(field.key ?? `text_${index}`);
+
+                        return (
                           <div key={index}>
                             <p className="text-xs font-medium text-gray-500">
                               {field.label || field.key || `Text ${index + 1}`}
                             </p>
+
                             <p className="whitespace-pre-wrap break-words text-sm text-gray-800">
-                              {isFieldIgnored(
-                                frame.id,
-                                String(field.key ?? `text_${index}`),
-                              )
+                              {isFieldIgnored(frame.id, fieldKey)
                                 ? "Ignored"
-                                : (values[
-                                    String(field.key ?? `text_${index}`)
-                                  ] ?? field.text)}
+                                : (values[fieldKey] ?? field.text)}
                             </p>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-              <div className="mt-5 flex flex-col justify-between gap-4 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
-                <div>
-                  <p className="text-sm text-gray-500">Background music</p>
-                  <p className="font-medium">
-                    {selectedMusic?.title || "No background music"}
-                  </p>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-                    Template price: ₹{template.price.toLocaleString("en-IN")}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void generateVideo()}
-                  disabled={generating}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#a86dcd] px-5 py-3 font-semibold text-white hover:bg-[#914bb8] disabled:opacity-60"
-                >
-                  {generating ? (
-                    <>
-                      <LoaderCircle className="animate-spin" size={18} />{" "}
-                      Generating...
-                    </>
-                  ) : (
-                    "Generate Video"
-                  )}
-                </button>
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        )}
+
+            <div className="flex flex-col justify-between gap-4 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-sm text-gray-500">Background music</p>
+
+                <p className="font-medium">
+                  {selectedMusic?.title || "No background music"}
+                </p>
+
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
+                  Template price: ₹{template.price.toLocaleString("en-IN")}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void generateVideo()}
+                disabled={generating}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#a86dcd] px-5 py-3 font-semibold text-white hover:bg-[#914bb8] disabled:opacity-60"
+              >
+                {generating ? (
+                  <>
+                    <LoaderCircle className="animate-spin" size={18} />
+                    Generating...
+                  </>
+                ) : (
+                  "Generate Video"
+                )}
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Larger generated video modal */}
         {showFinalPreview && generatedVideo && (

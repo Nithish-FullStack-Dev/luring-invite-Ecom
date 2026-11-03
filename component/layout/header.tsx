@@ -3,12 +3,13 @@
 import { usePublicContent } from "@/component/cms/PublicContentProvider";
 import { defaults } from "@/data/cms";
 import React, { useEffect, useRef, useState } from "react";
-import { Menu, X, Phone, Mail, ShoppingCart } from "lucide-react";
+import { Menu, X, Phone, Mail, ShoppingCart, UserRound } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useLoader } from "@/lib/loader-context";
 import CartSheet from "../customize/CartSheet";
 import { useCart } from "../cart/CartProvider";
+import EmailAuthDialog from "../customize/EmailAuthDialog";
 
 const topMessages: string[] = [
   "Customizable magnets tailored to your occasion",
@@ -44,7 +45,13 @@ const Header: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null); // ✅ NEW
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { cartItems, initialized: cartInitialized, user } = useCart();
+  const {
+    cartItems,
+    initialized: cartInitialized,
+    user,
+    refreshCart,
+  } = useCart();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const [isQuoteOpen, setIsQuoteOpen] = useState(false);
   const [quoteData, setQuoteData] = useState({
@@ -296,33 +303,49 @@ const Header: React.FC = () => {
                 </button>
               </nav>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCartOpen(true);
-                }}
-                aria-label="Open shopping cart"
-                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-800 transition hover:bg-purple-50 hover:text-[#A86DCD]"
-              >
-                <ShoppingCart className="h-6 w-6" />
-
-                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#A86DCD] text-xs font-bold text-white">
-                  {cartInitialized ? cartCount : "…"}
-                </span>
-              </button>
-
-              {/* ✅ Mobile Toggle (Menu <-> Close) */}
-              <button
-                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-                className="lg:hidden p-2"
-                aria-label="Toggle menu"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-7 h-7" />
-                ) : (
-                  <Menu className="w-7 h-7" />
+              {/* Header Actions */}
+              <div className="flex shrink-0 items-center gap-2">
+                {/* Login Icon - Desktop */}
+                {/* Login Icon - Desktop: Show only when user is not logged in */}
+                {cartInitialized && !user && (
+                  <button
+                    type="button"
+                    onClick={() => setIsLoginOpen(true)}
+                    aria-label="Sign in"
+                    className="hidden h-10 w-10 items-center justify-center rounded-full text-gray-800 transition hover:bg-purple-50 hover:text-[#A86DCD] lg:flex"
+                  >
+                    <UserRound className="h-6 w-6" />
+                  </button>
                 )}
-              </button>
+
+                {/* Cart Icon - Desktop and Mobile */}
+                <button
+                  type="button"
+                  onClick={() => setIsCartOpen(true)}
+                  aria-label="Open shopping cart"
+                  className="relative flex h-10 w-10 items-center justify-center rounded-full text-gray-800 transition hover:bg-purple-50 hover:text-[#A86DCD]"
+                >
+                  <ShoppingCart className="h-6 w-6" />
+
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#A86DCD] text-xs font-bold text-white">
+                    {cartInitialized ? cartCount : "…"}
+                  </span>
+                </button>
+
+                {/* Mobile Menu Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-gray-800 transition hover:bg-purple-50 lg:hidden"
+                  aria-label="Toggle menu"
+                >
+                  {isMobileMenuOpen ? (
+                    <X className="h-7 w-7" />
+                  ) : (
+                    <Menu className="h-7 w-7" />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -332,6 +355,17 @@ const Header: React.FC = () => {
         cartItems={cartItems}
         isCartOpen={isCartOpen}
         setIsCartOpen={setIsCartOpen}
+      />
+
+      <EmailAuthDialog
+        open={isLoginOpen}
+        templateTitle="your invitation templates"
+        purpose="save"
+        onClose={() => setIsLoginOpen(false)}
+        onAuthenticated={async () => {
+          await refreshCart();
+          setIsLoginOpen(false);
+        }}
       />
 
       {/* ================= ANIMATED MOBILE MENU ================= */}

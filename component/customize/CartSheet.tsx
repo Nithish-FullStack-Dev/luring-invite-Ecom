@@ -31,6 +31,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "../ui/sheet";
+import { Button } from "../ui/button";
 
 function CartThumbnail({ item }: { item: CartItem }) {
   const [failed, setFailed] = useState(false);
@@ -234,15 +235,15 @@ const CartSheet = ({
             )} */}
 
             {user ? (
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="min-w-0 truncate text-xs text-gray-500">
                   Signed in as {user.email}
                 </p>
-                <button
+                <Button
                   type="button"
                   onClick={() => void handleLogout()}
                   disabled={isLoggingOut}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  variant="destructive"
                 >
                   {isLoggingOut ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -250,7 +251,7 @@ const CartSheet = ({
                     <LogOut className="h-4 w-4" />
                   )}
                   Logout
-                </button>
+                </Button>
               </div>
             ) : (
               <button
